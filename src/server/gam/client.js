@@ -1,4 +1,4 @@
-import { google } from "googleapis";
+import { OAuth2Client } from "google-auth-library";
 import { env } from "../env.js";
 
 let cachedAuth = null;
@@ -35,7 +35,7 @@ export function getGoogleAuth() {
     throw new Error("GAM_OAUTH_JSON não contém client_id/client_secret");
   }
 
-  const auth = new google.auth.OAuth2(clientId, clientSecret, redirectUri);
+  const auth = new OAuth2Client(clientId, clientSecret, redirectUri);
   auth.setCredentials(token);
 
   cachedAuth = auth;
