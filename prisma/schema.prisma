@@ -60,6 +60,9 @@ model Link {
   utms        Json?
   /// Peso do sorteio, em % (0-100). Recalculado pelo otimizador.
   probability Float    @default(0)
+  /// Trava manual, em % (0-100). Preenchido, o link recebe exatamente esta
+  /// fatia e sai da otimização; nulo, o algoritmo decide por ele.
+  fixedProbability Float?
   /// Métricas vindas do Google Ad Manager.
   ecpm        Float    @default(0)
   impressions Int      @default(0)

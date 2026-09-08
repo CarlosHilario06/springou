@@ -4,6 +4,7 @@ import { api } from "../lib/apiClient";
 import LinkModal from "../components/LinkModal";
 import RouteModal from "../components/RouteModal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import SplitterSwitcher from "../components/SplitterSwitcher";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -16,21 +17,7 @@ function readCampaign(link) {
   return link.utms?.utm_campaign || "";
 }
 
-/**
- * Encurta a URL para leitura: domínio + caminho, sem a query string.
- * As UTMs que enchiam a linha já têm coluna própria, e a URL inteira
- * continua acessível ao passar o mouse.
- */
-function formatUrl(rawUrl) {
-  try {
-    const parsed = new URL(rawUrl);
-    return parsed.host + parsed.pathname.replace(/\/$/, "");
-  } catch {
-    return rawUrl;
-  }
-}
-
-export default function Links({ splitter }) {
+export default function Links({ project, splitter, onSelectSplitter }) {
   const [view, setView] = useState("links");
   const [tabs, setTabs] = useState([]);
   const [activeTab, setActiveTab] = useState(null);
@@ -40,6 +27,14 @@ export default function Links({ splitter }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [optimizing, setOptimizing] = useState(false);
+
+  // Edição inline: guarda só o que mudou, em cima do que veio do servidor.
+  // Assim nenhum efeito precisa copiar a lista para o estado — o que o
+  // compilador do React acusaria como cascata de renderizações.
+  const [drafts, setDrafts] = useState({});
+  const [newRows, setNewRows] = useState([]);
+  const [removedIds, setRemovedIds] = useState([]);
+  const [saving, setSaving] = useState(false);
 
   const [editingLink, setEditingLink] = useState(null);
   const [editingRoute, setEditingRoute] = useState(null);
@@ -106,6 +101,92 @@ export default function Links({ splitter }) {
       ),
     [tabLinks]
   );
+
+  const visibleLinks = tabLinks.filter((link) => !removedIds.includes(link.id));
+
+  const rows = [
+    ...visibleLinks.map((link) => ({ ...link, ...(drafts[link.id] || {}) })),
+    ...newRows,
+  ];
+
+  const isDirty =
+    Object.keys(drafts).length > 0 ||
+    newRows.length > 0 ||
+    removedIds.length > 0;
+
+  function editRow(row, field, value) {
+    if (row.tempId) {
+      setNewRows((current) =>
+        current.map((item) =>
+          item.tempId === row.tempId ? { ...item, [field]: value } : item
+        )
+      );
+      return;
+    }
+
+    setDrafts((current) => ({
+      ...current,
+      [row.id]: { ...(current[row.id] || {}), [field]: value },
+    }));
+  }
+
+  function removeRow(row) {
+    if (row.tempId) {
+      setNewRows((current) =>
+        current.filter((item) => item.tempId !== row.tempId)
+      );
+      return;
+    }
+
+    setDrafts((current) => {
+      const next = { ...current };
+      delete next[row.id];
+      return next;
+    });
+    setRemovedIds((current) => [...current, row.id]);
+  }
+
+  function addRow() {
+    setNewRows((current) => [
+      ...current,
+      { tempId: `novo-${Date.now()}-${current.length}`, url: "", disabled: false },
+    ]);
+  }
+
+  function discardChanges() {
+    setDrafts({});
+    setNewRows([]);
+    setRemovedIds([]);
+  }
+
+  async function saveRows() {
+    setSaving(true);
+
+    try {
+      await run(
+        () =>
+          api(`/api/splitters/${splitter.id}/links`, {
+            method: "PUT",
+            body: {
+              tab: activeTab,
+              links: rows.map((row) => ({
+                id: row.tempId ? undefined : row.id,
+                url: row.url,
+                disabled: Boolean(row.disabled),
+                fixedProbability:
+                  row.fixedProbability === "" ? null : row.fixedProbability,
+              })),
+            },
+          }),
+        "Links salvos."
+      );
+      discardChanges();
+    } catch {
+      /* mensagem já exibida */
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function flash(message) {
     setNotice(message);
@@ -262,7 +343,12 @@ export default function Links({ splitter }) {
     <>
       <div className="page-header">
         <div>
-          <h1 className="page-title">{splitter.category}</h1>
+          <SplitterSwitcher
+            project={project}
+            splitter={splitter}
+            onSelect={onSelectSplitter}
+          />
+
           <p className="page-subtitle">
             {totals.visits > 0
               ? `${decimal.format(totals.visits)} visitas · ${decimal.format(
@@ -392,112 +478,177 @@ export default function Links({ splitter }) {
             <table>
               <thead>
                 <tr>
-                  <th>URL</th>
+                  <th style={{ minWidth: 320 }}>URL de destino</th>
                   <th>utm_campaign</th>
                   <th className="td-numeric">eCPM</th>
-                  <th className="td-numeric">Impressões</th>
+                  <th className="td-numeric">Impr.</th>
                   <th className="td-numeric">Receita</th>
                   <th className="td-numeric">Visitas</th>
-                  <th style={{ minWidth: 160 }}>Tráfego</th>
+                  <th style={{ width: 90 }}>Peso</th>
+                  <th style={{ minWidth: 150 }}>Tráfego</th>
+                  <th style={{ width: 70 }}>Oculto</th>
                   <th />
                 </tr>
               </thead>
 
               <tbody>
-                {tabLinks.map((link) => (
-                  <tr
-                    key={link.id}
-                    className={
-                      link.disabled
-                        ? "row-clickable row-disabled"
-                        : "row-clickable"
-                    }
-                    onClick={() => setEditingLink(link)}
-                    title="Clique para editar"
-                  >
-                    <td>
-                      <div className="url-cell" title={link.url}>
-                        {formatUrl(link.url)}
-                      </div>
+                {rows.map((row) => {
+                  const isNew = Boolean(row.tempId);
 
-                      <div className="url-cell-tags">
-                        {link.disabled && (
-                          <span className="badge badge-danger">desativado</span>
-                        )}
-                        {link.type && <span className="badge">{link.type}</span>}
-                      </div>
-                    </td>
-
-                    <td className="mono">{readCampaign(link) || "—"}</td>
-
-                    <td className="td-numeric">
-                      {currency.format(link.ecpm)}
-                    </td>
-
-                    <td className="td-numeric">
-                      {decimal.format(link.impressions)}
-                    </td>
-
-                    <td className="td-numeric">
-                      {currency.format(link.revenue)}
-                    </td>
-
-                    <td className="td-numeric">
-                      {decimal.format(link.visits)}
-                    </td>
-
-                    <td>
-                      <div className="share-cell">
-                        <div className="share-bar">
-                          <span style={{ width: `${link.probability}%` }} />
-                        </div>
-                        <span className="share-value">
-                          {link.probability.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-
-                    <td onClick={(event) => event.stopPropagation()}>
-                      <div className="btn-row">
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => setEditingLink(link)}
-                          aria-label="Editar link"
-                        >
-                          <Pencil size={14} />
-                        </button>
-
-                        <button
-                          type="button"
-                          className="btn btn-ghost btn-sm"
-                          onClick={() =>
-                            setPendingDelete({ kind: "link", id: link.id })
+                  return (
+                    <tr
+                      key={row.tempId || row.id}
+                      className={row.disabled ? "row-disabled" : ""}
+                    >
+                      <td>
+                        <input
+                          type="url"
+                          className="cell-input"
+                          value={row.url}
+                          onChange={(event) =>
+                            editRow(row, "url", event.target.value)
                           }
-                          aria-label="Excluir link"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                          placeholder="https://destino.com/pagina?utm_campaign=..."
+                          title={row.url}
+                        />
+                        {row.type && (
+                          <div className="url-cell-tags">
+                            <span className="badge">{row.type}</span>
+                          </div>
+                        )}
+                      </td>
+
+                      <td className="mono">
+                        {isNew ? (
+                          <span className="muted">lida da URL</span>
+                        ) : (
+                          readCampaign(row) || "—"
+                        )}
+                      </td>
+
+                      <td className="td-numeric">
+                        {isNew ? "—" : currency.format(row.ecpm)}
+                      </td>
+
+                      <td className="td-numeric">
+                        {isNew ? "—" : decimal.format(row.impressions)}
+                      </td>
+
+                      <td className="td-numeric">
+                        {isNew ? "—" : currency.format(row.revenue)}
+                      </td>
+
+                      <td className="td-numeric">
+                        {isNew ? "—" : decimal.format(row.visits)}
+                      </td>
+
+                      <td>
+                        <input
+                          type="number"
+                          className="cell-input cell-input-sm"
+                          value={row.fixedProbability ?? ""}
+                          onChange={(event) =>
+                            editRow(
+                              row,
+                              "fixedProbability",
+                              event.target.value === ""
+                                ? null
+                                : Number(event.target.value)
+                            )
+                          }
+                          min="0"
+                          max="100"
+                          placeholder="auto"
+                          title="Deixe vazio para o algoritmo decidir"
+                        />
+                      </td>
+
+                      <td>
+                        {isNew ? (
+                          <span className="muted">—</span>
+                        ) : (
+                          <div className="share-cell">
+                            <div className="share-bar">
+                              <span style={{ width: `${row.probability}%` }} />
+                            </div>
+                            <span className="share-value">
+                              {row.probability.toFixed(1)}%
+                            </span>
+                          </div>
+                        )}
+                      </td>
+
+                      <td>
+                        <input
+                          type="checkbox"
+                          checked={Boolean(row.disabled)}
+                          onChange={(event) =>
+                            editRow(row, "disabled", event.target.checked)
+                          }
+                          aria-label="Ocultar do sorteio"
+                        />
+                      </td>
+
+                      <td>
+                        <div className="btn-row">
+                          {!isNew && (
+                            <button
+                              type="button"
+                              className="btn btn-ghost btn-sm"
+                              onClick={() => setEditingLink(row)}
+                              aria-label="Editar tipo, aba e UTMs"
+                              title="Tipo, aba e UTMs"
+                            >
+                              <Pencil size={14} />
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-sm"
+                            onClick={() => removeRow(row)}
+                            aria-label="Remover"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
 
-          {/* Com a tabela cheia o botão do topo fica longe da última
-              linha, que é de onde se costuma continuar cadastrando. */}
           <div className="table-footer-action">
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={() => setEditingLink({})}
-              disabled={!activeTab}
-            >
+            <button type="button" className="btn btn-secondary" onClick={addRow}>
               <Plus size={16} />
-              Novo link
+              Adicionar URL
             </button>
+
+            {isDirty && (
+              <>
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={saveRows}
+                  disabled={saving}
+                >
+                  {saving ? "Salvando..." : "Salvar URLs"}
+                </button>
+
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={discardChanges}
+                  disabled={saving}
+                >
+                  Descartar
+                </button>
+
+                <span className="muted">Alterações não salvas</span>
+              </>
+            )}
           </div>
         </>
         )

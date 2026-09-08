@@ -55,6 +55,13 @@ export default function App() {
     setPage("links");
   }
 
+  /** Salto direto pelo seletor: pode trocar de projeto junto. */
+  function openSplitterFrom(nextProject, nextSplitter) {
+    setProject(nextProject);
+    setSplitter(nextSplitter);
+    setPage("links");
+  }
+
   const showBreadcrumb = ["splitters", "links"].includes(page);
 
   return (
@@ -107,7 +114,13 @@ export default function App() {
           <Splitters project={project} onOpenSplitter={openSplitter} />
         )}
 
-        {page === "links" && splitter && <Links splitter={splitter} />}
+        {page === "links" && splitter && (
+          <Links
+            project={project}
+            splitter={splitter}
+            onSelectSplitter={openSplitterFrom}
+          />
+        )}
 
         {page === "admanager" && <AdManager />}
 

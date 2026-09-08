@@ -22,6 +22,30 @@ router.get("/", async (req, res, next) => {
   }
 });
 
+/**
+ * Projetos com seus splitters, para o seletor do topo do painel poder
+ * pular direto de um splitter para outro sem voltar à lista.
+ */
+router.get("/tree", async (req, res, next) => {
+  try {
+    const projects = await prisma.project.findMany({
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        name: true,
+        splitters: {
+          orderBy: { createdAt: "asc" },
+          select: { id: true, category: true, location: true },
+        },
+      },
+    });
+
+    res.json(projects);
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.post("/", async (req, res, next) => {
   try {
     const name = requireString(req.body?.name, "Nome do projeto", {

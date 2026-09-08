@@ -58,6 +58,42 @@ function parseUtms(raw) {
   return Object.keys(utms).length > 0 ? utms : null;
 }
 
+/** Trava manual: número de 0 a 100, ou null para deixar automático. */
+function parseFixedProbability(raw) {
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const value = Number(raw);
+
+  if (!Number.isFinite(value) || value < 0 || value > 100) {
+    throw badRequest("O peso fixo deve ser um número entre 0 e 100");
+  }
+
+  return Number(value.toFixed(2));
+}
+
+/**
+ * Lê as UTMs que já vêm na query string da URL de destino.
+ *
+ * O painel também faz isso ao digitar, mas a lista inline salva a URL crua
+ * — e é aqui que ela vira `utm_campaign`, a chave que casa com o relatório
+ * do Ad Manager.
+ */
+function extractUtmsFromUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const utms = {};
+
+    for (const key of ALLOWED_UTM_KEYS) {
+      const value = parsed.searchParams.get(key)?.trim();
+      if (value) utms[key] = value.slice(0, 255);
+    }
+
+    return Object.keys(utms).length > 0 ? utms : null;
+  } catch {
+    return null;
+  }
+}
+
 async function ensureTabExists(splitterId, tab) {
   const existing = await prisma.splitterTab.findUnique({
     where: { splitterId_tab: { splitterId, tab } },
@@ -94,14 +130,17 @@ router.post("/splitters/:splitterId/links", async (req, res, next) => {
     const tab = optionalString(req.body?.tab, { maxLength: 60 }) || "1";
     await ensureTabExists(splitterId, tab);
 
+    const url = requireHttpUrl(req.body?.url, "URL do link");
+
     const link = await prisma.link.create({
       data: {
         splitterId,
         tab,
-        url: requireHttpUrl(req.body?.url, "URL do link"),
+        url,
         type: optionalString(req.body?.type, { maxLength: 60 }),
         disabled: Boolean(req.body?.disabled),
-        utms: parseUtms(req.body?.utms),
+        utms: parseUtms(req.body?.utms) ?? extractUtmsFromUrl(url),
+        fixedProbability: parseFixedProbability(req.body?.fixedProbability),
       },
     });
 
@@ -147,6 +186,10 @@ router.put("/links/:id", async (req, res, next) => {
       data.tab = tab;
     }
 
+    if (req.body?.fixedProbability !== undefined) {
+      data.fixedProbability = parseFixedProbability(req.body.fixedProbability);
+    }
+
     await prisma.link.update({ where: { id }, data });
     await optimizeTrafficProbabilities({ splitterId: existing.splitterId });
 
@@ -167,6 +210,97 @@ router.delete("/links/:id", async (req, res, next) => {
     await optimizeTrafficProbabilities({ splitterId: existing.splitterId });
 
     res.json({ ok: true });
+  } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Salva a lista inteira de uma aba de uma vez — o botão "Salvar URLs".
+ *
+ * Cada item pode trazer `id` (atualiza) ou não (cria). Itens sem URL são
+ * descartados em silêncio: são as linhas em branco que o painel adiciona
+ * quando se clica em "Adicionar URL" e não se preenche.
+ */
+router.put("/splitters/:splitterId/links", async (req, res, next) => {
+  try {
+    const splitterId = parseId(req.params.splitterId, "Splitter");
+    const tab = optionalString(req.body?.tab, { maxLength: 60 }) || "1";
+
+    const splitter = await prisma.splitter.findUnique({
+      where: { id: splitterId },
+    });
+    if (!splitter) throw notFound("Splitter não encontrado");
+
+    await ensureTabExists(splitterId, tab);
+
+    if (!Array.isArray(req.body?.links)) {
+      throw badRequest("Envie a lista de links em `links`");
+    }
+
+    const rows = req.body.links.filter(
+      (row) => String(row?.url ?? "").trim() !== ""
+    );
+
+    const existing = await prisma.link.findMany({
+      where: { splitterId, tab },
+      select: { id: true },
+    });
+    const existingIds = new Set(existing.map((link) => link.id));
+
+    const operations = [];
+    const keptIds = new Set();
+
+    for (const row of rows) {
+      const data = {
+        url: requireHttpUrl(row.url, "URL do link"),
+        disabled: Boolean(row.disabled),
+        fixedProbability: parseFixedProbability(row.fixedProbability),
+      };
+
+      if (row.id !== undefined && row.id !== null) {
+        const id = parseId(row.id, "Link");
+
+        // Ignora id de outra aba ou de outro splitter: a lista enviada
+        // descreve apenas esta aba.
+        if (!existingIds.has(id)) continue;
+
+        keptIds.add(id);
+        operations.push(prisma.link.update({ where: { id }, data }));
+        continue;
+      }
+
+      operations.push(
+        prisma.link.create({
+          data: {
+            ...data,
+            splitterId,
+            tab,
+            utms: parseUtms(row.utms) ?? extractUtmsFromUrl(data.url),
+          },
+        })
+      );
+    }
+
+    // O que sumiu da lista foi removido pelo botão "Remover".
+    const removedIds = [...existingIds].filter((id) => !keptIds.has(id));
+
+    if (removedIds.length > 0) {
+      operations.unshift(
+        prisma.link.deleteMany({ where: { id: { in: removedIds } } })
+      );
+    }
+
+    if (operations.length > 0) await prisma.$transaction(operations);
+
+    await optimizeTrafficProbabilities({ splitterId });
+
+    res.json(
+      await prisma.link.findMany({
+        where: { splitterId, tab },
+        orderBy: { createdAt: "asc" },
+      })
+    );
   } catch (error) {
     next(error);
   }
@@ -216,7 +350,7 @@ router.get("/splitters/:splitterId/preview", async (req, res, next) => {
         url: link.url,
         ecpm: link.ecpm,
         impressions: link.impressions,
-        confidence: Number(link.confidence.toFixed(3)),
+        confidence: Number((link.confidence ?? 1).toFixed(3)),
         probability: link.probability,
       }))
     );

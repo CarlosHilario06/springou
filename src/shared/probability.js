@@ -80,21 +80,41 @@ function clampToBounds(probs, minProb, maxProb) {
   return sum > 0 ? current.map((prob) => prob / sum) : probs;
 }
 
-/**
- * Recebe os links de uma aba e devolve cada um com sua fatia de tráfego.
- *
- * @returns {Array} links ativos com `prob` (0-1) e `probability` (0-100).
- */
-export function calculateProbabilities(links, options = {}) {
-  const config = { ...DEFAULT_OPTIONS, ...options };
+/** Anota um link que não passou pelo cálculo, para a saída ficar uniforme. */
+function asFixed(link, share) {
+  return {
+    ...link,
+    ecpmValue: Math.max(Number(link.ecpm) || 0, DEFAULT_OPTIONS.minEcpm),
+    impressions: Math.max(Number(link.impressions) || 0, 0),
+    confidence: 1,
+    score: 0,
+    prob: share / 100,
+    probability: Number(share.toFixed(2)),
+  };
+}
 
-  const activeLinks = (links || []).filter((link) => !link.disabled);
+/**
+ * Distribui `budget` por cento entre os links, pelo eCPM.
+ *
+ * @returns {Array} links com `prob` (0-1) e `probability` (0-100).
+ */
+function distribute(activeLinks, config, budget) {
   const totalLinks = activeLinks.length;
 
   if (totalLinks === 0) return [];
 
   if (totalLinks === 1) {
-    return [{ ...activeLinks[0], prob: 1, probability: 100 }];
+    return [
+      {
+        ...activeLinks[0],
+        ecpmValue: Math.max(Number(activeLinks[0].ecpm) || 0, config.minEcpm),
+        impressions: Math.max(Number(activeLinks[0].impressions) || 0, 0),
+        confidence: 1,
+        score: 0,
+        prob: budget / 100,
+        probability: Number(budget.toFixed(2)),
+      },
+    ];
   }
 
   const scoredLinks = activeLinks.map((link) => {
@@ -126,9 +146,68 @@ export function calculateProbabilities(links, options = {}) {
 
   return scoredLinks.map((link, index) => ({
     ...link,
-    prob: probs[index],
-    probability: Number((probs[index] * 100).toFixed(2)),
+    prob: (probs[index] * budget) / 100,
+    probability: Number((probs[index] * budget).toFixed(2)),
   }));
+}
+
+/** Lê a trava manual do link, ou null quando ele é automático. */
+function readFixedShare(link) {
+  const raw = link.fixedProbability;
+
+  // Ausência precisa ser testada antes do Number(): `Number(null)` é 0, e
+  // isso transformaria todo link automático numa trava de 0%.
+  if (raw === null || raw === undefined || raw === "") return null;
+
+  const value = Number(raw);
+  if (!Number.isFinite(value) || value < 0) return null;
+
+  return Math.min(value, 100);
+}
+
+/**
+ * Recebe os links de uma aba e devolve cada um com sua fatia de tráfego.
+ *
+ * Links com trava manual recebem exatamente a fatia pedida; o que sobra até
+ * 100% é distribuído pelo algoritmo entre os demais.
+ *
+ * @returns {Array} links ativos com `prob` (0-1) e `probability` (0-100).
+ */
+export function calculateProbabilities(links, options = {}) {
+  const config = { ...DEFAULT_OPTIONS, ...options };
+
+  const activeLinks = (links || []).filter((link) => !link.disabled);
+
+  if (activeLinks.length === 0) return [];
+
+  const fixed = [];
+  const free = [];
+
+  for (const link of activeLinks) {
+    const share = readFixedShare(link);
+    if (share === null) free.push(link);
+    else fixed.push({ link, share });
+  }
+
+  if (fixed.length === 0) return distribute(free, config, 100);
+
+  const fixedTotal = fixed.reduce((acc, item) => acc + item.share, 0);
+
+  // As travas já ocupam tudo (ou passam disso): reparte 100% entre elas na
+  // proporção pedida e os automáticos ficam sem tráfego.
+  if (fixedTotal >= 100 || free.length === 0) {
+    const scale = fixedTotal > 0 ? 100 / fixedTotal : 0;
+
+    return [
+      ...fixed.map((item) => asFixed(item.link, item.share * scale)),
+      ...free.map((link) => asFixed(link, 0)),
+    ];
+  }
+
+  return [
+    ...fixed.map((item) => asFixed(item.link, item.share)),
+    ...distribute(free, config, 100 - fixedTotal),
+  ];
 }
 
 /**
