@@ -125,7 +125,15 @@ export async function syncGamConnections({ connectionId } = {}) {
     }
 
     if (!anySucceeded) {
-      throw new Error("Nenhuma conexão do GAM respondeu");
+      // Sem isso o painel só mostra o genérico e o usuário fica sem saber
+      // o que o Google recusou.
+      const failed = summary.connections.find((item) => !item.ok);
+
+      throw new Error(
+        failed?.error
+          ? `Falha ao sincronizar "${failed.name}": ${failed.error}`
+          : "Nenhuma conexão do GAM respondeu"
+      );
     }
 
     const links = await prisma.link.findMany();

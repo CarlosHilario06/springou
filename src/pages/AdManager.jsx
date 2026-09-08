@@ -90,10 +90,12 @@ export default function AdManager() {
         );
       }
 
-      reload();
     } catch (syncError) {
       setError(syncError.message);
     } finally {
+      // Recarrega mesmo em caso de falha: é na linha da conexão que fica
+      // o motivo do erro que o Google devolveu.
+      reload();
       setSyncing(false);
     }
   }

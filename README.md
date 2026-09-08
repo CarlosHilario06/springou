@@ -114,6 +114,24 @@ receita.
 `ENABLE_GAM_SYNC=true` liga o cron (padrão: de hora em hora, via
 `GAM_SYNC_CRON`). Sem isso, a sincronização só acontece pelo botão do painel.
 
+### Gerando um token novo
+
+Quando a sincronização falhar com `invalid_grant`, o refresh token não vale
+mais e precisa ser refeito:
+
+```bash
+node scripts/generate-gam-token.js
+```
+
+O script sobe um servidor local temporário, imprime um link de autorização
+e grava o resultado em `GAM_TOKEN_JSON`. O `GAM_OAUTH_JSON` não muda —
+client_id e client_secret não expiram.
+
+> Se a tela de consentimento do projeto no Google Cloud estiver em modo
+> **Testing**, o Google invalida o refresh token depois de 7 dias. Para um
+> token que dura, publique o app (**In production**) em
+> *APIs & Services → OAuth consent screen*.
+
 ### Trazendo credenciais de uma instalação antiga
 
 Se você já tem um `oauth.json` e um `token.json` de uma versão anterior do
