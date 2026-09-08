@@ -113,10 +113,33 @@ export default function Links({ project, splitter, onSelectSplitter }) {
 
   const visibleLinks = tabLinks.filter((link) => !removedIds.includes(link.id));
 
+  /**
+   * O campo mostra a fatia que o link recebe de verdade — e não o número
+   * pedido na trava, que pode ter sido reduzido para caber em 100%.
+   * Enquanto se digita, vale o rascunho, senão o campo brigaria com o
+   * cursor.
+   */
   const rows = [
-    ...visibleLinks.map((link) => ({ ...link, ...(drafts[link.id] || {}) })),
-    ...newRows,
+    ...visibleLinks.map((link) => {
+      const draft = drafts[link.id] || {};
+
+      return {
+        ...link,
+        ...draft,
+        shareInput:
+          draft.fixedProbability !== undefined
+            ? draft.fixedProbability
+            : Number(link.probability).toFixed(1),
+      };
+    }),
+    ...newRows.map((row) => ({ ...row, shareInput: row.fixedProbability ?? "" })),
   ];
+
+  // Travas que não cabem juntas são reduzidas na proporção pedida; sem
+  // avisar, o painel pareceria estar ignorando o que foi digitado.
+  const lockedTotal = rows
+    .filter((row) => isLocked(row))
+    .reduce((acc, row) => acc + Number(row.fixedProbability), 0);
 
   const isDirty =
     Object.keys(drafts).length > 0 ||
@@ -407,6 +430,15 @@ export default function Links({ project, splitter, onSelectSplitter }) {
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
 
+      {lockedTotal > 100.01 && (
+        <div className="alert alert-info">
+          Suas travas somam <strong>{lockedTotal.toFixed(1)}%</strong>, mais do
+          que os 100% disponíveis. Elas foram reduzidas na mesma proporção para
+          caber, e os links automáticos ficaram sem tráfego. Baixe alguma trava
+          para liberar espaço.
+        </div>
+      )}
+
       <div className="tabs">
         {tabs.map((item) => (
           <button
@@ -571,10 +603,7 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                             >
                               <input
                                 type="number"
-                                value={
-                                  row.fixedProbability ??
-                                  Number(row.probability).toFixed(1)
-                                }
+                                value={row.shareInput}
                                 onChange={(event) =>
                                   editRow(
                                     row,
