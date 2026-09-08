@@ -387,6 +387,7 @@ export default function Links({ splitter }) {
             </button>
           </div>
         ) : (
+          <>
           <div className="table-wrapper">
             <table>
               <thead>
@@ -484,6 +485,21 @@ export default function Links({ splitter }) {
               </tbody>
             </table>
           </div>
+
+          {/* Com a tabela cheia o botão do topo fica longe da última
+              linha, que é de onde se costuma continuar cadastrando. */}
+          <div className="table-footer-action">
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setEditingLink({})}
+              disabled={!activeTab}
+            >
+              <Plus size={16} />
+              Novo link
+            </button>
+          </div>
+        </>
         )
       ) : tabRoutes.length === 0 ? (
         <div className="empty-state">
@@ -504,6 +520,7 @@ export default function Links({ splitter }) {
           </button>
         </div>
       ) : (
+        <>
         <div className="table-wrapper">
           <table>
             <thead>
@@ -574,6 +591,19 @@ export default function Links({ splitter }) {
             </tbody>
           </table>
         </div>
+
+        <div className="table-footer-action">
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setEditingRoute({})}
+            disabled={!activeTab}
+          >
+            <Plus size={16} />
+            Nova rota
+          </button>
+        </div>
+        </>
       )}
 
       {editingLink && (

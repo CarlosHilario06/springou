@@ -416,6 +416,12 @@ tbody tr:hover {
   opacity: 0.45;
 }
 
+.table-footer-action {
+  display: flex;
+  justify-content: center;
+  margin-top: 14px;
+}
+
 /* -------------------------------------------------- barra de tráfego */
 
 .share-cell {
