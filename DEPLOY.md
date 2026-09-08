@@ -71,6 +71,41 @@ sudo iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
 sudo netfilter-persistent save
 ```
 
+## 2b. Máquina pequena (1 GB de RAM)
+
+Pule esta seção se sua instância tem 6 GB ou mais.
+
+As máquinas ARM gratuitas vivem esgotadas nas regiões concorridas. A saída é
+a outra opção do plano gratuito, a `VM.Standard.E2.1.Micro` (AMD, 1 núcleo,
+1 GB), que quase sempre tem estoque.
+
+Ela **roda** o sistema sem problema — a aplicação, o Postgres e o Caddy
+juntos ficam em torno de 400 MB. O que não cabe em 1 GB é o **build** do
+painel, que é o pico de memória de toda a operação.
+
+Resolve-se com um arquivo de swap. Antes do `docker compose up`:
+
+```bash
+sudo fallocate -l 4G /swapfile
+sudo chmod 600 /swapfile
+sudo mkswap /swapfile
+sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+```
+
+Confira com `free -h` — deve aparecer 4 GB em *Swap*.
+
+O build fica mais lento (uns 5 a 10 minutos em vez de 2), mas passa. Depois
+de no ar, o swap quase não é tocado: o consumo em regime cabe na memória
+real.
+
+Se ainda assim o build falhar por memória, limite o Node durante ele:
+
+```bash
+NODE_OPTIONS=--max-old-space-size=512 docker compose build
+docker compose up -d
+```
+
 ## 3. Instalar o Docker
 
 ```bash
