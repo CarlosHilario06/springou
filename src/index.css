@@ -583,6 +583,49 @@ tbody tr:hover {
   text-align: right;
 }
 
+/* A porcentagem é editável: parece texto até receber o cursor. */
+.share-input {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 3px 6px;
+  border-radius: 7px;
+  border: 1px solid transparent;
+  color: var(--text);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.share-input:hover {
+  border-color: var(--border-strong);
+}
+
+.share-input input {
+  width: 46px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+.share-input input:focus {
+  outline: none;
+}
+
+.share-input input::-webkit-outer-spin-button,
+.share-input input::-webkit-inner-spin-button {
+  appearance: none;
+  margin: 0;
+}
+
+/* Travado à mão: o roxo distingue do que o algoritmo calculou. */
+.share-input.is-locked {
+  background: var(--accent-soft);
+  color: #c7d2fe;
+}
+
 /* ------------------------------------------------------------- abas */
 
 .tabs {

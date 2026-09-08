@@ -13,6 +13,15 @@ const currency = new Intl.NumberFormat("pt-BR", {
 
 const decimal = new Intl.NumberFormat("pt-BR");
 
+/** Fatia travada à mão — o campo vazio volta a ser automático. */
+function isLocked(row) {
+  return (
+    row.fixedProbability !== null &&
+    row.fixedProbability !== undefined &&
+    row.fixedProbability !== ""
+  );
+}
+
 function readCampaign(link) {
   return link.utms?.utm_campaign || "";
 }
@@ -173,8 +182,9 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                 id: row.tempId ? undefined : row.id,
                 url: row.url,
                 disabled: Boolean(row.disabled),
-                fixedProbability:
-                  row.fixedProbability === "" ? null : row.fixedProbability,
+                fixedProbability: isLocked(row)
+                  ? Number(row.fixedProbability)
+                  : null,
               })),
             },
           }),
@@ -484,8 +494,7 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                   <th className="td-numeric">Impr.</th>
                   <th className="td-numeric">Receita</th>
                   <th className="td-numeric">Visitas</th>
-                  <th style={{ width: 90 }}>Peso</th>
-                  <th style={{ minWidth: 150 }}>Tráfego</th>
+                  <th style={{ minWidth: 190 }}>Tráfego</th>
                   <th style={{ width: 70 }}>Oculto</th>
                   <th />
                 </tr>
@@ -543,27 +552,6 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                       </td>
 
                       <td>
-                        <input
-                          type="number"
-                          className="cell-input cell-input-sm"
-                          value={row.fixedProbability ?? ""}
-                          onChange={(event) =>
-                            editRow(
-                              row,
-                              "fixedProbability",
-                              event.target.value === ""
-                                ? null
-                                : Number(event.target.value)
-                            )
-                          }
-                          min="0"
-                          max="100"
-                          placeholder="auto"
-                          title="Deixe vazio para o algoritmo decidir"
-                        />
-                      </td>
-
-                      <td>
                         {isNew ? (
                           <span className="muted">—</span>
                         ) : (
@@ -571,8 +559,38 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                             <div className="share-bar">
                               <span style={{ width: `${row.probability}%` }} />
                             </div>
-                            <span className="share-value">
-                              {row.probability.toFixed(1)}%
+
+                            {/* A própria fatia é o campo: mostra o que o
+                                algoritmo calculou e aceita ser sobrescrita. */}
+                            <span
+                              className={
+                                isLocked(row)
+                                  ? "share-input is-locked"
+                                  : "share-input"
+                              }
+                            >
+                              <input
+                                type="number"
+                                value={
+                                  row.fixedProbability ??
+                                  Number(row.probability).toFixed(1)
+                                }
+                                onChange={(event) =>
+                                  editRow(
+                                    row,
+                                    "fixedProbability",
+                                    event.target.value
+                                  )
+                                }
+                                min="0"
+                                max="100"
+                                title={
+                                  isLocked(row)
+                                    ? "Fatia travada. Apague para voltar ao automático."
+                                    : "Calculado pelo eCPM. Digite para travar."
+                                }
+                              />
+                              %
                             </span>
                           </div>
                         )}
