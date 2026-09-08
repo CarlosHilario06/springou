@@ -1,0 +1,107 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// Usuário do painel. Senha sempre em hash (bcrypt), nunca em texto puro.
+model User {
+  id           Int      @id @default(autoincrement())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Project {
+  id        Int        @id @default(autoincrement())
+  name      String
+  splitters Splitter[]
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model Splitter {
+  id        Int             @id @default(autoincrement())
+  category  String
+  location  String?
+  projectId Int
+  project   Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  links     Link[]
+  routes    SplitterRoute[]
+  tabs      SplitterTab[]
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([projectId])
+}
+
+/// Abas de um splitter. Cada aba é um conjunto independente de links.
+model SplitterTab {
+  id         Int      @id @default(autoincrement())
+  tab        String
+  splitterId Int
+  splitter   Splitter @relation(fields: [splitterId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([splitterId, tab])
+}
+
+model Link {
+  id          Int      @id @default(autoincrement())
+  url         String
+  type        String?
+  tab         String   @default("1")
+  disabled    Boolean  @default(false)
+  utms        Json?
+  /// Peso do sorteio, em % (0-100). Recalculado pelo otimizador.
+  probability Float    @default(0)
+  /// Métricas vindas do Google Ad Manager.
+  ecpm        Float    @default(0)
+  impressions Int      @default(0)
+  revenue     Float    @default(0)
+  /// Acessos servidos por /go/:slug.
+  visits      Int      @default(0)
+  splitterId  Int
+  splitter    Splitter @relation(fields: [splitterId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([splitterId, tab, disabled])
+}
+
+/// Rota pública de redirect: domínio + slug apontando para uma aba do splitter.
+model SplitterRoute {
+  id             Int      @id @default(autoincrement())
+  domain         String
+  slug           String
+  pixelId        String?
+  loaderTitle    String?
+  loaderSubtitle String?
+  tab            String   @default("1")
+  splitterId     Int
+  splitter       Splitter @relation(fields: [splitterId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([domain, slug])
+  @@index([slug])
+}
+
+model GamConnection {
+  id          Int       @id @default(autoincrement())
+  name        String
+  networkCode String
+  reportType  String    @default("utm_campaign")
+  reportId    String?
+  active      Boolean   @default(true)
+  status      String    @default("connected")
+  lastError   String?
+  lastSyncAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+}

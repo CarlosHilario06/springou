@@ -1,0 +1,45 @@
+# dependencies
+node_modules/
+
+# build
+dist/
+dist-ssr/
+*.local
+
+# env & segredos — NUNCA commitar
+.env
+.env.*
+!.env.example
+*.pem
+credentials.json
+oauth.json
+token.json
+service-account*.json
+
+# banco local
+*.db
+*.db-journal
+*.sqlite
+
+# prisma
+src/generated/
+prisma/dev.db*
+
+# logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# editores
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
