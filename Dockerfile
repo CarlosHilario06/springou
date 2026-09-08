@@ -1,6 +1,9 @@
 # ---------- build do painel ----------
 FROM node:22-alpine AS build
 
+# O Prisma precisa do OpenSSL para escolher o engine certo no Alpine.
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 
 COPY package*.json ./
@@ -16,6 +19,8 @@ RUN npm run build
 # ---------- imagem final ----------
 FROM node:22-alpine AS runtime
 
+RUN apk add --no-cache openssl
+
 WORKDIR /app
 ENV NODE_ENV=production
 
@@ -26,6 +31,10 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY src ./src
 COPY scripts ./scripts
 COPY --from=build /app/dist ./dist
+
+# As migrations rodam no arranque e o Prisma precisa escrever no diretório;
+# sem isto o contêiner entra em ciclo de reinício ao subir sem ser root.
+RUN chown -R node:node /app
 
 # Não rodar como root.
 USER node

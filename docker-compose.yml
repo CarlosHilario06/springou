@@ -36,7 +36,7 @@ services:
       GAM_TOKEN_JSON: ${GAM_TOKEN_JSON:-}
       FB_PIXEL_ID: ${FB_PIXEL_ID:-}
     # Aplica as migrations antes de subir, para o deploy ser um comando só.
-    command: sh -c "npx prisma migrate deploy && node src/server/index.js"
+    command: sh -c "node_modules/.bin/prisma migrate deploy && node src/server/index.js"
 
   caddy:
     image: caddy:2-alpine
