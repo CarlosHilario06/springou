@@ -114,6 +114,25 @@ receita.
 `ENABLE_GAM_SYNC=true` liga o cron (padrão: de hora em hora, via
 `GAM_SYNC_CRON`). Sem isso, a sincronização só acontece pelo botão do painel.
 
+### Trazendo credenciais de uma instalação antiga
+
+Se você já tem um `oauth.json` e um `token.json` de uma versão anterior do
+projeto, dá para reaproveitar sem refazer o fluxo OAuth:
+
+```bash
+node scripts/import-gam-credentials.js /caminho/do/projeto-antigo
+```
+
+O script procura os dois arquivos, confere que o token tem `refresh_token` e
+o escopo do Ad Manager, e preenche `GAM_OAUTH_JSON` e `GAM_TOKEN_JSON` no
+`.env` sem tocar no resto. Nenhum valor é impresso na tela. Reinicie o
+servidor depois.
+
+> A sincronização casa link e relatório pela `utm_campaign`. Links cujas
+> campanhas não aparecem no relatório têm as métricas zeradas — é o
+> comportamento esperado, mas significa que um sync real limpa os números
+> fictícios criados por `npm run seed`.
+
 ## Estrutura
 
 ```
