@@ -21,13 +21,29 @@ export const DEFAULT_OPTIONS = {
   epsilon: 0.1,
   /** Piso de participação por link. */
   minProb: 0.05,
-  /** Teto de participação por link. */
+  /**
+   * Teto de participação por link, aplicado só quando há links suficientes
+   * para ele fazer sentido — ver `ceilingFor`.
+   */
   maxProb: 0.55,
   /** Impressões a partir das quais o eCPM é considerado confiável. */
   minImpressions: 1000,
   /** eCPM mínimo considerado, evita score zerado. */
   minEcpm: 0.01,
 };
+
+/**
+ * Teto que acompanha a quantidade de links.
+ *
+ * Um teto fixo achata a distribuição quando há poucos links: com dois, o
+ * limite de 55% faz uma diferença de eCPM de 2x e outra de 10.000x darem o
+ * mesmo 55/45 — o eCPM deixa de importar. O espaço realmente necessário é
+ * o piso dos outros links, então o teto é o que sobra depois de reservá-lo.
+ */
+function ceilingFor(totalLinks, config) {
+  const roomForOthers = 1 - (totalLinks - 1) * config.minProb;
+  return Math.min(1, Math.max(config.maxProb, roomForOthers));
+}
 
 /**
  * Aplica piso e teto mantendo a soma em 1.
@@ -142,7 +158,7 @@ function distribute(activeLinks, config, budget) {
     (prob) => (1 - config.epsilon) * prob + config.epsilon / totalLinks
   );
 
-  probs = clampToBounds(probs, config.minProb, config.maxProb);
+  probs = clampToBounds(probs, config.minProb, ceilingFor(totalLinks, config));
 
   return scoredLinks.map((link, index) => ({
     ...link,

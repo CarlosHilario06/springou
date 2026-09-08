@@ -34,10 +34,30 @@ nunca parar de testar os outros:
 | `alpha` | 0.6 | Achata a vantagem do melhor link — o dobro de eCPM não vira o dobro de tráfego |
 | `confidence` | 1000 impressões | eCPM medido em pouca impressão pesa menos |
 | `epsilon` | 0.1 | 10% do tráfego sempre vai para exploração uniforme |
-| `minProb` / `maxProb` | 5% / 55% | Piso e teto por link |
+| `minProb` | 5% | Piso por link, para ninguém morrer sem chance de reavaliação |
+| `maxProb` | 5% a 95% | Teto por link, que acompanha a quantidade de links |
+
+O teto é adaptativo de propósito. Fixo em 55%, com dois links uma diferença
+de eCPM de 2x e outra de 10.000x davam o mesmo 55/45 — o teto engolia o
+sinal e o eCPM deixava de importar. O espaço realmente necessário é o piso
+dos outros links, então o teto é o que sobra depois de reservá-lo:
+`100% − (n−1) × piso`, nunca abaixo dos 55% originais.
+
+| Links | Teto |
+|---|---|
+| 2 | 95% |
+| 3 | 90% |
+| 5 | 80% |
+| 10 ou mais | 55% |
+
+Cada link pode ainda ter uma **trava manual**: preenchida, ele recebe
+exatamente aquela fatia e sai da otimização; o restante até 100% é
+distribuído entre os automáticos.
 
 Piso e teto são aplicados com redistribuição iterativa, então a soma fecha
 sempre em 100% sem estourar os limites.
+
+O comportamento é coberto por `npm test`, que roda sem banco nem servidor.
 
 ## Stack
 
