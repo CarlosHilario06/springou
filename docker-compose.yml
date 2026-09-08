@@ -1,0 +1,59 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: springou
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+      POSTGRES_DB: springou
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U springou -d springou"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    # Sem portas publicadas: o banco só é alcançável pela rede interna.
+
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://springou:${POSTGRES_PASSWORD}@db:5432/springou?schema=public
+      PORT: 3001
+      NODE_ENV: production
+      JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET no .env}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-12h}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+      ENABLE_GAM_SYNC: ${ENABLE_GAM_SYNC:-false}
+      GAM_SYNC_CRON: ${GAM_SYNC_CRON:-0 * * * *}
+      GAM_OAUTH_JSON: ${GAM_OAUTH_JSON:-}
+      GAM_TOKEN_JSON: ${GAM_TOKEN_JSON:-}
+      FB_PIXEL_ID: ${FB_PIXEL_ID:-}
+    # Aplica as migrations antes de subir, para o deploy ser um comando só.
+    command: sh -c "npx prisma migrate deploy && node src/server/index.js"
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?defina DOMAIN no .env}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+
+volumes:
+  db-data:
+  caddy-data:
+  caddy-config:

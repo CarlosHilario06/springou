@@ -1,6 +1,9 @@
 import express from "express";
 import cors from "cors";
 import cron from "node-cron";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { env } from "./env.js";
 import prisma from "./prisma.js";
@@ -23,16 +26,33 @@ const app = express();
 app.set("trust proxy", true);
 app.disable("x-powered-by");
 
+/**
+ * Em produção o painel é servido pelo próprio processo, então as
+ * requisições vêm da mesma origem — inclusive as dos assets, que o Vite
+ * marca como `crossorigin`. Recusá-las derrubaria o site inteiro.
+ */
+function isSameOrigin(origin, req) {
+  try {
+    return new URL(origin).host === req.headers.host;
+  } catch {
+    return false;
+  }
+}
+
 app.use(
-  cors({
-    origin(origin, callback) {
-      // Sem Origin = chamada servidor-a-servidor ou navegação direta.
-      if (!origin || env.corsOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Origem não permitida pelo CORS: ${origin}`));
-    },
-    credentials: true,
+  cors((req, callback) => {
+    const origin = req.headers.origin;
+
+    // Sem Origin: navegação direta ou chamada servidor-a-servidor.
+    if (!origin) return callback(null, { origin: false });
+
+    if (isSameOrigin(origin, req) || env.corsOrigins.includes(origin)) {
+      return callback(null, { origin: true, credentials: true });
+    }
+
+    // Origem não autorizada: responde sem os cabeçalhos e deixa o
+    // navegador bloquear. Lançar erro aqui viraria 500 em recurso válido.
+    return callback(null, { origin: false });
   })
 );
 
@@ -69,7 +89,43 @@ app.use("/api", linksRoutes);
 app.use("/api", splitterRoutesRoutes);
 app.use("/api/gam", gamRoutes);
 
+/* ----------------------------------------------- painel construído */
+
+const rootDir = path.resolve(fileURLToPath(import.meta.url), "../../..");
+const distDir = path.join(rootDir, "dist");
+
+// Em produção um processo só serve a API, o redirect e o painel. Em
+// desenvolvimento a pasta não existe e o Vite cuida do painel.
+if (fs.existsSync(path.join(distDir, "index.html"))) {
+  app.use(
+    express.static(distDir, {
+      // O HTML muda a cada build; os assets têm hash no nome.
+      setHeaders(res, filePath) {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+        }
+      },
+    })
+  );
+
+  console.log("📦 Servindo o painel de ./dist");
+}
+
 /* ------------------------------------------------------------- erros */
+
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/")) {
+    return res.status(404).json({ error: "Endpoint não encontrado" });
+  }
+
+  // O painel é uma SPA: qualquer outro caminho devolve o index.
+  const indexFile = path.join(distDir, "index.html");
+  if (fs.existsSync(indexFile)) return res.sendFile(indexFile);
+
+  return next();
+});
 
 app.use((req, res) => {
   res.status(404).json({ error: "Endpoint não encontrado" });

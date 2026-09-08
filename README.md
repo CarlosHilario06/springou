@@ -98,6 +98,19 @@ diferentes, já com a distribuição calculada, e uma rota em
 `localhost:3001/go/demo` para você exercitar o redirect. Rodar de novo
 recria só esse projeto — o resto do banco não é tocado.
 
+## Colocando no ar
+
+O [DEPLOY.md](DEPLOY.md) traz o passo a passo para um servidor próprio, com
+Docker, Postgres e HTTPS automático — incluindo como fazer isso sem custo no
+nível gratuito da Oracle Cloud.
+
+```bash
+cp .env.example .env   # preencha DOMAIN, POSTGRES_PASSWORD, JWT_SECRET, ADMIN_*
+docker compose up -d --build
+```
+
+Um processo serve o painel, a API e o redirect; o Caddy cuida do certificado.
+
 ## Google Ad Manager
 
 A integração roda com credenciais OAuth passadas por variável de ambiente —

@@ -1,0 +1,16 @@
+# O Caddy emite e renova o certificado HTTPS sozinho, via Let's Encrypt.
+# Basta o domínio apontar para este servidor.
+{$DOMAIN} {
+	encode gzip zstd
+
+	# X-Forwarded-* chegam ao Express, que precisa deles para ler o Host
+	# real nas rotas de redirect.
+	reverse_proxy app:3001
+
+	log {
+		output file /data/access.log {
+			roll_size 10MiB
+			roll_keep 5
+		}
+	}
+}
