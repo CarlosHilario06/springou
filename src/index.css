@@ -418,7 +418,7 @@ tbody tr:hover {
 
 .table-footer-action {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   margin-top: 14px;
 }
 
