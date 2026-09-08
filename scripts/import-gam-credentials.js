@@ -21,12 +21,48 @@ function fail(message) {
   process.exit(1);
 }
 
+const IGNORED_DIRS = new Set([
+  "node_modules",
+  ".git",
+  "dist",
+  "build",
+  ".next",
+]);
+
+/** Varre a árvore procurando o arquivo, para o caminho informado poder ser
+ *  a pasta do projeto ou qualquer pasta acima dela. */
+function searchTree(root, name, depth = 0) {
+  if (depth > 5) return null;
+
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch {
+    return null;
+  }
+
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name === name) return path.join(root, entry.name);
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    if (IGNORED_DIRS.has(entry.name) || entry.name.startsWith(".")) continue;
+
+    const found = searchTree(path.join(root, entry.name), name, depth + 1);
+    if (found) return found;
+  }
+
+  return null;
+}
+
 function findFile(root, name) {
   for (const dir of SEARCH_DIRS) {
     const candidate = path.join(root, dir, name);
     if (fs.existsSync(candidate)) return candidate;
   }
-  return null;
+
+  return searchTree(root, name);
 }
 
 function readJson(file) {
