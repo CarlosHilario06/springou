@@ -15,8 +15,31 @@ Em [cloud.oracle.com](https://cloud.oracle.com), crie a conta. O cartão é
 usado só para verificação de identidade; a conta fica como *Always Free* e
 não é cobrada.
 
-Escolha uma região da Europa (Frankfurt ou Amsterdã) — a região **não pode
-ser trocada depois**.
+A região escolhida no cadastro (*home region*) **não pode ser trocada
+depois**, e os recursos gratuitos só existem nela.
+
+Escolha a região mais próxima de onde vem o grosso do seu tráfego. Mas se
+você já escolheu outra, não recomece a conta: o impacto é menor do que
+parece.
+
+O que a região **não** afeta é a capacidade. As três consultas por redirect
+falam com um Postgres na mesma máquina, custando ~1ms independentemente de
+onde o servidor esteja — os ~1.200 acessos/s medidos valem igual em São
+Paulo ou em Frankfurt.
+
+O que ela afeta é a latência de rede até o visitante. Um europeu acessando
+um servidor no Brasil paga uns 200ms a mais, que viram ~400ms até o primeiro
+byte por causa do aperto de mão do TLS. Como a página de carregamento já
+espera 1,2s antes de redirecionar, o visitante percebe pouco.
+
+E dá para recuperar boa parte disso de graça: com o proxy do Cloudflare
+ligado (passo 4), o TLS é negociado numa borda perto do visitante e a
+conexão até o servidor fica reaproveitada, cortando a maior parte do custo
+do aperto de mão.
+
+> Curiosidade útil: Frankfurt e Amsterdã são as regiões mais concorridas
+> para as máquinas ARM gratuitas, e frequentemente aparecem sem estoque.
+> Regiões menos disputadas costumam liberar a instância de primeira.
 
 Em **Compute → Instances → Create instance**:
 
@@ -71,8 +94,11 @@ A     split   SEU_IP          desligado (nuvem cinza)
 ```
 
 Deixe o proxy **desligado** no primeiro deploy: o Caddy precisa falar direto
-com a Let's Encrypt para emitir o certificado. Depois de o HTTPS funcionar,
-você pode ligar se quiser.
+com a Let's Encrypt para emitir o certificado.
+
+Depois que o HTTPS estiver funcionando, **ligue o proxy** (nuvem laranja).
+Além de esconder o IP do servidor, ele termina o TLS perto do visitante — o
+que compensa boa parte da latência quando o servidor está longe do público.
 
 Confirme antes de seguir — o DNS pode levar alguns minutos:
 
