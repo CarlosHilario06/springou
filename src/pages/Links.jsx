@@ -16,6 +16,20 @@ function readCampaign(link) {
   return link.utms?.utm_campaign || "";
 }
 
+/**
+ * Encurta a URL para leitura: domínio + caminho, sem a query string.
+ * As UTMs que enchiam a linha já têm coluna própria, e a URL inteira
+ * continua acessível ao passar o mouse.
+ */
+function formatUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    return parsed.host + parsed.pathname.replace(/\/$/, "");
+  } catch {
+    return rawUrl;
+  }
+}
+
 export default function Links({ splitter }) {
   const [view, setView] = useState("links");
   const [tabs, setTabs] = useState([]);
@@ -361,6 +375,16 @@ export default function Links({ splitter }) {
           <div className="empty-state">
             <h3>Nenhum link nesta aba</h3>
             <p>Cadastre os links que vão disputar o tráfego desta aba.</p>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={() => setEditingLink({})}
+              disabled={!activeTab}
+            >
+              <Plus size={16} />
+              Novo link
+            </button>
           </div>
         ) : (
           <div className="table-wrapper">
@@ -380,16 +404,27 @@ export default function Links({ splitter }) {
 
               <tbody>
                 {tabLinks.map((link) => (
-                  <tr key={link.id} className={link.disabled ? "row-disabled" : ""}>
-                    <td className="td-url">
-                      {link.url}
-                      {link.disabled && (
-                        <>
-                          {" "}
+                  <tr
+                    key={link.id}
+                    className={
+                      link.disabled
+                        ? "row-clickable row-disabled"
+                        : "row-clickable"
+                    }
+                    onClick={() => setEditingLink(link)}
+                    title="Clique para editar"
+                  >
+                    <td>
+                      <div className="url-cell" title={link.url}>
+                        {formatUrl(link.url)}
+                      </div>
+
+                      <div className="url-cell-tags">
+                        {link.disabled && (
                           <span className="badge badge-danger">desativado</span>
-                        </>
-                      )}
-                      {link.type && <> <span className="badge">{link.type}</span></>}
+                        )}
+                        {link.type && <span className="badge">{link.type}</span>}
+                      </div>
                     </td>
 
                     <td className="mono">{readCampaign(link) || "—"}</td>
@@ -421,7 +456,7 @@ export default function Links({ splitter }) {
                       </div>
                     </td>
 
-                    <td>
+                    <td onClick={(event) => event.stopPropagation()}>
                       <div className="btn-row">
                         <button
                           type="button"
@@ -453,7 +488,20 @@ export default function Links({ splitter }) {
       ) : tabRoutes.length === 0 ? (
         <div className="empty-state">
           <h3>Nenhuma rota nesta aba</h3>
-          <p>Crie uma rota para gerar o endereço público de redirect.</p>
+          <p>
+            A rota é o endereço público que sorteia um link desta aba —
+            é o link que você divulga.
+          </p>
+
+          <button
+            type="button"
+            className="btn"
+            onClick={() => setEditingRoute({})}
+            disabled={!activeTab}
+          >
+            <Plus size={16} />
+            Nova rota
+          </button>
         </div>
       ) : (
         <div className="table-wrapper">
@@ -469,7 +517,12 @@ export default function Links({ splitter }) {
 
             <tbody>
               {tabRoutes.map((route) => (
-                <tr key={route.id}>
+                <tr
+                  key={route.id}
+                  className="row-clickable"
+                  onClick={() => setEditingRoute(route)}
+                  title="Clique para editar"
+                >
                   <td className="mono">
                     {route.domain}/go/{route.slug}
                   </td>
@@ -484,7 +537,7 @@ export default function Links({ splitter }) {
 
                   <td className="td-url">{route.loaderTitle || "—"}</td>
 
-                  <td>
+                  <td onClick={(event) => event.stopPropagation()}>
                     <div className="btn-row">
                       <button
                         type="button"

@@ -388,6 +388,30 @@ tbody tr:hover {
   color: var(--text-muted);
 }
 
+/* URL em uma linha só: o resto aparece no title, ao passar o mouse. */
+.url-cell {
+  max-width: 360px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.url-cell-tags {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 5px;
+}
+
+.url-cell-tags:empty {
+  display: none;
+}
+
+.row-clickable {
+  cursor: pointer;
+}
+
 .row-disabled td {
   opacity: 0.45;
 }
@@ -682,6 +706,15 @@ textarea::placeholder {
 .empty-state h3 {
   color: var(--text);
   margin-bottom: 6px;
+}
+
+.empty-state p {
+  max-width: 420px;
+  margin: 0 auto;
+}
+
+.empty-state .btn {
+  margin-top: 18px;
 }
 
 .loading {
