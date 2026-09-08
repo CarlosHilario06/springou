@@ -60,12 +60,23 @@ Preencha o `.env` — no mínimo `DATABASE_URL`, `JWT_SECRET`, `ADMIN_EMAIL` e
 node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"
 ```
 
-Crie o schema e suba os dois processos:
+Crie as tabelas:
 
 ```bash
-npx prisma migrate dev --name init
+npx prisma migrate deploy
+```
 
-npm run dev:server   # API   → http://localhost:3001
+O `npm install` já gera o cliente do Prisma sozinho, via `postinstall`. Se
+em algum momento aparecer `@prisma/client did not initialize yet`, rode
+`npx prisma generate` e siga em frente.
+
+Suba os dois processos, cada um no seu terminal:
+
+```bash
+npm run dev:server   # API    → http://localhost:3001
+```
+
+```bash
 npm run dev:front    # painel → http://localhost:5173
 ```
 

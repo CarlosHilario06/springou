@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "postinstall": "prisma generate",
     "dev:front": "vite",
     "dev:server": "node --watch src/server/index.js",
     "start": "node src/server/index.js",
