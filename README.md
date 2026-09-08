@@ -74,6 +74,19 @@ troque a senha em **Configurações** e remova `ADMIN_PASSWORD` do arquivo.
 
 Para conferir a API: `curl http://localhost:3001/api/health`
 
+### Dados de teste
+
+O banco nasce vazio. Para experimentar sem cadastrar tudo à mão:
+
+```bash
+npm run seed
+```
+
+Cria um projeto de demonstração com quatro links de eCPM e volume
+diferentes, já com a distribuição calculada, e uma rota em
+`localhost:3001/go/demo` para você exercitar o redirect. Rodar de novo
+recria só esse projeto — o resto do banco não é tocado.
+
 ## Google Ad Manager
 
 A integração roda com credenciais OAuth passadas por variável de ambiente —
