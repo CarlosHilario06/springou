@@ -42,7 +42,16 @@ function parseUtms(raw) {
   const utms = {};
 
   for (const key of ALLOWED_UTM_KEYS) {
-    const entry = String(value[key] ?? "").trim();
+    let entry = String(value[key] ?? "").trim();
+
+    // O relatório do Ad Manager mostra a chave-valor inteira
+    // ("utm_campaign=4_SPLIT1"), então colar a linha toda no campo é o
+    // gesto natural. Aceita, tirando o prefixo repetido.
+    const prefix = `${key}=`;
+    if (entry.toLowerCase().startsWith(prefix)) {
+      entry = entry.slice(prefix.length).trim();
+    }
+
     if (entry) utms[key] = entry.slice(0, 255);
   }
 

@@ -10,6 +10,24 @@ const UTM_FIELDS = [
   { key: "utm_id", label: "utm_id", placeholder: "12345" },
 ];
 
+/** Lê as UTMs que já estão na query string da URL de destino. */
+function extractUtmsFromUrl(rawUrl) {
+  try {
+    const parsed = new URL(rawUrl);
+    const found = {};
+
+    for (const field of UTM_FIELDS) {
+      const value = parsed.searchParams.get(field.key)?.trim();
+      if (value) found[field.key] = value;
+    }
+
+    return found;
+  } catch {
+    // URL ainda incompleta enquanto se digita: nada a extrair.
+    return {};
+  }
+}
+
 export default function LinkModal({ link, tabs, currentTab, onSave, onClose }) {
   const [url, setUrl] = useState(link?.url || "");
   const [type, setType] = useState(link?.type || "");
@@ -19,8 +37,35 @@ export default function LinkModal({ link, tabs, currentTab, onSave, onClose }) {
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const utmsInUrl = extractUtmsFromUrl(url);
+  const foundCount = Object.keys(utmsInUrl).length;
+
   function updateUtm(key, value) {
     setUtms((current) => ({ ...current, [key]: value }));
+  }
+
+  /**
+   * Ao colar uma URL que já carrega UTMs, preenche os campos vazios
+   * sozinho — sem sobrescrever o que já foi digitado à mão.
+   */
+  function handleUrlChange(value) {
+    setUrl(value);
+
+    const found = extractUtmsFromUrl(value);
+    if (Object.keys(found).length === 0) return;
+
+    setUtms((current) => {
+      const next = { ...current };
+      for (const [key, utm] of Object.entries(found)) {
+        if (!next[key]?.trim()) next[key] = utm;
+      }
+      return next;
+    });
+  }
+
+  /** Botão explícito: sobrescreve tudo com o que está na URL. */
+  function overwriteFromUrl() {
+    setUtms((current) => ({ ...current, ...utmsInUrl }));
   }
 
   async function handleSubmit(event) {
@@ -53,11 +98,17 @@ export default function LinkModal({ link, tabs, currentTab, onSave, onClose }) {
             id="link-url"
             type="url"
             value={url}
-            onChange={(event) => setUrl(event.target.value)}
+            onChange={(event) => handleUrlChange(event.target.value)}
             placeholder="https://oferta.exemplo.com/pagina"
             autoFocus
             required
           />
+          {foundCount > 0 && (
+            <span className="field-hint">
+              {foundCount} UTM(s) encontrada(s) na URL — os campos vazios abaixo
+              são preenchidos sozinhos.
+            </span>
+          )}
         </div>
 
         <div className="field-row">
@@ -97,10 +148,25 @@ export default function LinkModal({ link, tabs, currentTab, onSave, onClose }) {
           Desativado (fica fora do sorteio)
         </label>
 
-        <h3 className="modal-section-title">UTMs</h3>
+        <div className="modal-section-header">
+          <h3 className="modal-section-title">UTMs</h3>
+
+          {foundCount > 0 && (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={overwriteFromUrl}
+            >
+              Puxar da URL
+            </button>
+          )}
+        </div>
 
         <p className="field-hint" style={{ marginBottom: 12 }}>
-          Aplicadas na URL no momento do redirect. Campos em branco são ignorados.
+          Aplicadas na URL no momento do redirect. Campos em branco são
+          ignorados. Cole o valor sem o prefixo — <span className="mono">
+          4_SPLIT1_LT_EMP_LZ</span>, não <span className="mono">
+          utm_campaign=4_SPLIT1_LT_EMP_LZ</span>.
         </p>
 
         <div className="field-row">

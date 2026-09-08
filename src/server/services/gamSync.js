@@ -12,6 +12,15 @@ function normalize(value) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+/** Tira o "utm_campaign=" que vem colado quando o valor é copiado direto
+ *  da coluna chave-valor do relatório. */
+function stripKeyPrefix(value) {
+  const text = normalize(value);
+  return text.startsWith("utm_campaign=")
+    ? text.slice("utm_campaign=".length).trim()
+    : text;
+}
+
 function readCampaign(link) {
   const utms = link.utms;
 
@@ -19,13 +28,13 @@ function readCampaign(link) {
 
   if (typeof utms === "string") {
     try {
-      return normalize(JSON.parse(utms)?.utm_campaign);
+      return stripKeyPrefix(JSON.parse(utms)?.utm_campaign);
     } catch {
       return "";
     }
   }
 
-  return normalize(utms.utm_campaign);
+  return stripKeyPrefix(utms.utm_campaign);
 }
 
 /**
@@ -38,16 +47,28 @@ function mergeRows(target, rows) {
     const key = normalize(row.value);
     if (!key) continue;
 
-    const current = target.get(key) || { impressions: 0, revenue: 0, ecpm: 0 };
+    const current = target.get(key);
 
+    // Primeira aparição: fica o eCPM que o Google reportou. Recalcular
+    // receita ÷ impressões daria um número levemente diferente do que
+    // aparece no painel do Ad Manager, e a divergência confunde.
+    if (!current) {
+      target.set(key, {
+        impressions: Number(row.impressions) || 0,
+        revenue: Number(row.revenue) || 0,
+        ecpm: Number(row.ecpm) || 0,
+      });
+      continue;
+    }
+
+    // Mesma campanha vindo de outra rede: agora só a média ponderada
+    // sobre o total faz sentido.
     current.impressions += Number(row.impressions) || 0;
     current.revenue += Number(row.revenue) || 0;
     current.ecpm =
       current.impressions > 0
         ? (current.revenue / current.impressions) * 1000
-        : Number(row.ecpm) || 0;
-
-    target.set(key, current);
+        : current.ecpm;
   }
 }
 
