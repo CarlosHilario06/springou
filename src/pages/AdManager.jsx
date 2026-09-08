@@ -23,6 +23,7 @@ export default function AdManager() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [syncing, setSyncing] = useState(false);
+  const [campaigns, setCampaigns] = useState([]);
   const [editing, setEditing] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -83,11 +84,19 @@ export default function AdManager() {
 
       if (result.skipped) {
         setNotice(result.reason);
+        setCampaigns([]);
       } else {
+        const found = result.campaigns?.length || 0;
+
         setNotice(
           `Sincronizado: ${result.matchedLinks} link(s) atualizado(s), ` +
-            `${result.clearedLinks} zerado(s) por falta de entrega.`
+            `${result.clearedLinks} zerado(s) por falta de entrega. ` +
+            `O relatório trouxe ${found} campanha(s).`
         );
+
+        // Nenhum link casou: mostrar o que veio no relatório é o que
+        // permite cadastrar links com a utm_campaign certa.
+        setCampaigns(result.matchedLinks === 0 ? result.campaigns || [] : []);
       }
 
     } catch (syncError) {
@@ -145,6 +154,21 @@ export default function AdManager() {
 
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
+
+      {campaigns.length > 0 && (
+        <div className="alert alert-info">
+          <strong>Nenhum link casou com o relatório.</strong> Estas são as
+          campanhas encontradas — use uma delas como{" "}
+          <span className="mono">utm_campaign</span> nos seus links:
+          <div className="campaign-list">
+            {campaigns.map((campaign) => (
+              <span className="badge mono" key={campaign}>
+                {campaign}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {status && !status.configured && (
         <div className="alert alert-info">

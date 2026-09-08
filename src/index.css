@@ -459,6 +459,15 @@ tbody tr:hover {
   font-weight: 500;
 }
 
+.campaign-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
 /* ------------------------------------------------------------ badges */
 
 .badge {

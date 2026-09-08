@@ -58,7 +58,12 @@ function mergeRows(target, rows) {
  * Métricas só são zeradas quando pelo menos uma conexão respondeu — se tudo
  * falhar, os dados anteriores continuam valendo em vez de virar zero.
  */
-export async function syncGamConnections({ connectionId } = {}) {
+export async function syncGamConnections({
+  connectionId,
+  // Injetável para os testes conseguirem exercitar o casamento por
+  // utm_campaign sem chamar o Google.
+  fetchRows = getGamReportRows,
+} = {}) {
   if (gamSyncState.running) {
     return { skipped: true, reason: "Sincronização já em andamento" };
   }
@@ -66,7 +71,12 @@ export async function syncGamConnections({ connectionId } = {}) {
   gamSyncState.running = true;
   gamSyncState.lastError = null;
 
-  const summary = { connections: [], matchedLinks: 0, clearedLinks: 0 };
+  const summary = {
+    connections: [],
+    matchedLinks: 0,
+    clearedLinks: 0,
+    campaigns: [],
+  };
 
   try {
     const connections = await prisma.gamConnection.findMany({
@@ -82,7 +92,7 @@ export async function syncGamConnections({ connectionId } = {}) {
 
     for (const connection of connections) {
       try {
-        const rows = await getGamReportRows({
+        const rows = await fetchRows({
           networkCode: connection.networkCode,
           reportId: connection.reportId,
           reportType: connection.reportType,
@@ -135,6 +145,11 @@ export async function syncGamConnections({ connectionId } = {}) {
           : "Nenhuma conexão do GAM respondeu"
       );
     }
+
+    // As campanhas que o relatório trouxe. Sem isso, um sync que não casa
+    // nada é indistinguível de um relatório vazio — e não há como saber que
+    // utm_campaign usar nos links.
+    summary.campaigns = [...metricsByCampaign.keys()].sort().slice(0, 200);
 
     const links = await prisma.link.findMany();
     const updates = [];
