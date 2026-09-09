@@ -9,6 +9,28 @@ const REPORT_TYPES = [
   { value: "utm_content", label: "utm_content" },
 ];
 
+/** O que cada tentativa respondeu, em uma linha só. */
+function resumoDasTentativas(attempts = []) {
+  const aceitas = attempts.filter((item) => item.ok).map((item) => item.rotulo);
+  const recusadas = attempts.filter((item) => !item.ok);
+
+  const partes = [];
+
+  if (aceitas.length > 0) partes.push(`Aceitou: ${aceitas.join(", ")}.`);
+
+  if (recusadas.length > 0) {
+    // O motivo costuma ser o mesmo em todas; mostrar uma vez basta.
+    const motivos = [...new Set(recusadas.map((item) => item.motivo))];
+
+    partes.push(
+      `Recusou: ${recusadas.map((item) => item.rotulo).join(", ")}. ` +
+        `Motivo: ${motivos.join(" / ")}`
+    );
+  }
+
+  return partes.join(" ");
+}
+
 export default function GamConnectionModal({ connection, onSave, onClose }) {
   const [name, setName] = useState(connection?.name || "");
   const [networkCode, setNetworkCode] = useState(connection?.networkCode || "");
@@ -72,13 +94,13 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
       setReports(null);
 
       if (!created.usable) {
-        // O relatório existe, mas a rede parou antes da forma que o
-        // sincronizador lê. Não adianta gravar o ID: diria "conectado" e
-        // sincronizaria vazio.
+        // O relatório existe, mas a rede não aceitou nenhuma forma que o
+        // sincronizador lê. Não adianta gravar o ID: a conexão diria
+        // "conectado" e sincronizaria vazio.
         setNotice("");
         setError(
-          `A rede aceitou o relatório só até "${created.variant}". ` +
-            `Ela recusou "${created.wall?.rotulo}": ${created.wall?.motivo}`
+          "A rede não aceitou nenhum formato que o sincronizador lê. " +
+            resumoDasTentativas(created.attempts)
         );
         return;
       }

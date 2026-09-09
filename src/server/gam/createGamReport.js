@@ -16,22 +16,28 @@ export function reportDisplayName(reportKey) {
 }
 
 /**
- * Os degraus entre um relatório trivial e o que o sincronizador precisa.
+ * Tudo que vale a pena perguntar à rede, do mais simples ao mais completo.
  *
- * O Ad Manager recusa combinações de dimensão, métrica e filtro com um
+ * O Ad Manager recusa combinações de dimensão e métrica com um
  * `REPORT_ERROR_CONSTRAINTS_INCOMPATIBILITY` que não diz qual parte
- * ofendeu, e o que ele aceita varia de rede para rede. Em vez de adivinhar,
- * a criação sobe esta escada e para no último degrau que a rede aceitar —
- * o degrau que falhou é o diagnóstico.
+ * ofendeu, e o que ele aceita varia de rede para rede. Como todas as
+ * tentativas são `patch` no mesmo relatório, sai barato perguntar tudo de
+ * uma vez: as marcadas `usavel` servem ao sincronizador, as demais existem
+ * só para localizar a parede.
  *
- * A partir de `usavel: true` o relatório atende o contrato de
- * `parseGamRows`: dimensão `KEY_VALUES_NAME`, que devolve `chave=valor`, e
- * três métricas na ordem impressões, eCPM e receita.
+ * `usavel` exige o contrato de `parseGamRows`: dimensão `KEY_VALUES_NAME`,
+ * que devolve `chave=valor`, e três métricas na ordem impressões, eCPM e
+ * receita.
  */
-export function reportLadder(reportKey = "utm_campaign") {
+export function reportAttempts(reportKey = "utm_campaign") {
   const base = { reportType: "HISTORICAL", dateRange: { relative: DATE_RANGE } };
+  const porChave = { ...base, dimensions: ["KEY_VALUES_NAME"] };
 
-  const totais = ["IMPRESSIONS", "AVERAGE_ECPM", "REVENUE"];
+  const diagnostico = (rotulo, definition) => ({
+    rotulo,
+    usavel: false,
+    definition,
+  });
 
   const somenteAChave = [
     {
@@ -43,52 +49,61 @@ export function reportLadder(reportKey = "utm_campaign") {
     },
   ];
 
+  // Cada família vem em duas formas: com filtro pela chave, que evita
+  // trazer todas as chaves-valor da rede, e sem — porque o filtro é mais
+  // uma coisa que a rede pode recusar.
+  const familia = (rotulo, ecpm, receita) => {
+    const metrics = ["IMPRESSIONS", ecpm, receita];
+
+    return [
+      {
+        rotulo: `${rotulo}, filtrado pela chave`,
+        usavel: true,
+        definition: { ...porChave, metrics, filters: somenteAChave },
+      },
+      {
+        rotulo: `${rotulo}, sem filtro`,
+        usavel: true,
+        definition: { ...porChave, metrics },
+      },
+    ];
+  };
+
+  const sozinha = (rotulo, metrica) =>
+    diagnostico(rotulo, { ...porChave, metrics: ["IMPRESSIONS", metrica] });
+
   return [
-    {
-      rotulo: "só impressões, sem dimensão",
-      usavel: false,
-      definition: { ...base, dimensions: [], metrics: ["IMPRESSIONS"] },
-    },
-    {
-      rotulo: "por data",
-      usavel: false,
-      definition: { ...base, dimensions: ["DATE"], metrics: ["IMPRESSIONS"] },
-    },
-    {
-      rotulo: "por chave-valor",
-      usavel: false,
-      definition: {
-        ...base,
-        dimensions: ["KEY_VALUES_NAME"],
-        metrics: ["IMPRESSIONS"],
-      },
-    },
-    {
-      rotulo: "chave-valor com eCPM e receita",
-      usavel: true,
-      definition: {
-        ...base,
-        dimensions: ["KEY_VALUES_NAME"],
-        metrics: totais,
-      },
-    },
-    {
-      rotulo: "chave-valor filtrado pela chave",
-      usavel: true,
-      definition: {
-        ...base,
-        dimensions: ["KEY_VALUES_NAME"],
-        metrics: totais,
-        filters: somenteAChave,
-      },
-    },
+    // Base: confirma que o problema não é o período nem o tipo.
+    diagnostico("só impressões, sem dimensão", {
+      ...base,
+      dimensions: [],
+      metrics: ["IMPRESSIONS"],
+    }),
+    diagnostico("por data", {
+      ...base,
+      dimensions: ["DATE"],
+      metrics: ["IMPRESSIONS"],
+    }),
+    diagnostico("por chave-valor", { ...porChave, metrics: ["IMPRESSIONS"] }),
+
+    // Cada métrica de dinheiro sozinha, para saber qual delas ofende.
+    sozinha("+ receita total", "REVENUE"),
+    sozinha("+ eCPM total", "AVERAGE_ECPM"),
+    sozinha("+ receita do ad server", "AD_SERVER_REVENUE"),
+    sozinha("+ eCPM do ad server", "AD_SERVER_AVERAGE_ECPM"),
+    sozinha("+ receita do Ad Exchange", "AD_EXCHANGE_REVENUE"),
+    sozinha("+ eCPM do Ad Exchange", "AD_EXCHANGE_AVERAGE_ECPM"),
+
+    // As formas completas, da mais fiel à mais específica.
+    ...familia("totais", "AVERAGE_ECPM", "REVENUE"),
+    ...familia("ad server", "AD_SERVER_AVERAGE_ECPM", "AD_SERVER_REVENUE"),
+    ...familia("Ad Exchange", "AD_EXCHANGE_AVERAGE_ECPM", "AD_EXCHANGE_REVENUE"),
   ];
 }
 
-/** A forma final pretendida — o topo da escada. */
+/** A forma pretendida quando a rede aceita tudo. */
 export function buildReportDefinition(reportKey = "utm_campaign") {
-  const escada = reportLadder(reportKey);
-  return escada[escada.length - 1].definition;
+  return reportAttempts(reportKey).find((item) => item.usavel).definition;
 }
 
 async function criarComDefinicao(auth, networkCode, displayName, definition) {
@@ -138,55 +153,65 @@ export async function createGamReport({
 
   const auth = getGoogleAuth();
   const displayName = reportDisplayName(reportKey);
-  const escada = reportLadder(reportKey);
+  const tentativas = reportAttempts(reportKey);
 
   const existentes = await listGamReports({ networkCode });
   const jaCriado = existentes.find((item) => item.name === displayName);
 
   let reportId = jaCriado?.id ?? null;
-  let aceito = null;
-  let parede = null;
-  const recusas = [];
+  let melhor = null;
+  let ultimaAplicada = null;
+  const resultados = [];
 
-  for (const degrau of escada) {
+  // Percorre todas: são patches no mesmo recurso, então perguntar tudo
+  // custa pouco e responde de uma vez qual métrica a rede recusa.
+  for (const tentativa of tentativas) {
     try {
       if (reportId) {
-        await trocarDefinicao(auth, networkCode, reportId, degrau.definition);
+        await trocarDefinicao(auth, networkCode, reportId, tentativa.definition);
       } else {
         reportId = await criarComDefinicao(
           auth,
           networkCode,
           displayName,
-          degrau.definition
+          tentativa.definition
         );
       }
 
-      aceito = degrau;
-    } catch (error) {
-      const motivo = describeGoogleError(error);
-      recusas.push(`${degrau.rotulo}: ${motivo}`);
+      ultimaAplicada = tentativa;
+      resultados.push({ rotulo: tentativa.rotulo, ok: true });
 
-      // O primeiro degrau recusado é o diagnóstico; os de cima seriam
-      // recusados pelo mesmo motivo.
-      parede = { rotulo: degrau.rotulo, motivo };
-      break;
+      if (tentativa.usavel && !melhor) melhor = tentativa;
+    } catch (error) {
+      resultados.push({
+        rotulo: tentativa.rotulo,
+        ok: false,
+        motivo: describeGoogleError(error),
+      });
     }
   }
 
-  if (!aceito) {
+  if (!reportId) {
     const erro = new Error(
-      `O Ad Manager recusou até o relatório mais simples nesta rede. ${recusas.join(" | ")}`
+      `O Ad Manager não aceitou criar nem o relatório mais simples. ` +
+        resultados.map((r) => `${r.rotulo}: ${r.motivo}`).join(" | ")
     );
     erro.fromGam = true;
     throw erro;
   }
 
+  // O relatório ficou com a última definição aplicada, que pode não ser a
+  // melhor: devolve ele à forma escolhida.
+  if (melhor && ultimaAplicada !== melhor) {
+    await trocarDefinicao(auth, networkCode, reportId, melhor.definition);
+  }
+
   return {
     id: reportId,
     name: displayName,
-    variant: aceito.rotulo,
-    usable: aceito.usavel,
-    wall: parede,
+    usable: Boolean(melhor),
+    variant: melhor?.rotulo ?? ultimaAplicada?.rotulo ?? null,
+    attempts: resultados,
     reused: Boolean(jaCriado),
   };
 }
