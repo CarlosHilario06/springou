@@ -138,8 +138,13 @@ export async function createGamReport({
   }
 
   // Nenhuma combinação passou: mostra o que cada uma ouviu do Google, que é
-  // o que permite ajustar sem ficar no escuro.
-  throw new Error(
+  // o que permite ajustar sem ficar no escuro. `fromGam` diz à rota que
+  // este texto é para ser lido pelo operador, e não um erro interno a
+  // esconder em produção.
+  const recusado = new Error(
     `O Ad Manager recusou todas as combinações. ${recusas.join(" | ")}`
   );
+  recusado.fromGam = true;
+
+  throw recusado;
 }

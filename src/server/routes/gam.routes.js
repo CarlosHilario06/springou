@@ -22,6 +22,19 @@ const router = Router();
 
 const REPORT_TYPES = ["utm_campaign", "utm_source", "utm_medium", "utm_content"];
 
+/**
+ * Erro de conversa com o Google vira 400 com o motivo por extenso.
+ *
+ * Sem isso ele cai no 500 genérico, que em produção troca a mensagem por
+ * "Erro interno" — justamente a informação de que o operador precisa para
+ * saber o que ajustar no GAM.
+ */
+function comoErroDoGam(error) {
+  if (error?.response) return badRequest(describeGoogleError(error));
+  if (error?.fromGam) return badRequest(error.message);
+  return error;
+}
+
 router.get("/status", async (req, res, next) => {
   try {
     // Depois de reiniciar o servidor a memória zera, mas cada conexão
@@ -162,11 +175,7 @@ router.get("/networks/:networkCode/reports", async (req, res, next) => {
 
     res.json(await listGamReports({ networkCode }));
   } catch (error) {
-    if (error?.response) {
-      return next(badRequest(describeGoogleError(error)));
-    }
-
-    next(error);
+    next(comoErroDoGam(error));
   }
 });
 
@@ -196,11 +205,7 @@ router.post("/networks/:networkCode/reports", async (req, res, next) => {
 
     res.status(201).json(await createGamReport({ networkCode, reportKey }));
   } catch (error) {
-    if (error?.response) {
-      return next(badRequest(describeGoogleError(error)));
-    }
-
-    next(error);
+    next(comoErroDoGam(error));
   }
 });
 
