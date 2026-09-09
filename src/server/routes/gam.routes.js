@@ -6,6 +6,8 @@ import {
   isGamConfigured,
 } from "../gam/client.js";
 import { gamSyncState, syncGamConnections } from "../services/gamSync.js";
+import { listGamReports } from "../gam/listGamReports.js";
+import { describeGoogleError } from "../gam/errors.js";
 import { env } from "../env.js";
 import {
   badRequest,
@@ -136,6 +138,33 @@ router.delete("/connections/:id", async (req, res, next) => {
     await prisma.gamConnection.delete({ where: { id } });
     res.json({ ok: true });
   } catch (error) {
+    next(error);
+  }
+});
+
+/**
+ * Relatórios que a credencial enxerga numa rede.
+ *
+ * Relatório salvo tem dono no GAM, então o ID que o operador vê no painel
+ * dele nem sempre é visível para a conta de serviço. Listar evita cadastrar
+ * um ID que nunca vai funcionar.
+ */
+router.get("/networks/:networkCode/reports", async (req, res, next) => {
+  try {
+    if (!isGamConfigured()) {
+      throw badRequest("GAM não configurado — defina as credenciais no .env");
+    }
+
+    const networkCode = requireString(req.params.networkCode, "Network code", {
+      maxLength: 40,
+    });
+
+    res.json(await listGamReports({ networkCode }));
+  } catch (error) {
+    if (error?.response) {
+      return next(badRequest(describeGoogleError(error)));
+    }
+
     next(error);
   }
 });

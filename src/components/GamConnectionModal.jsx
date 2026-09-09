@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "./Modal";
+import { api } from "../lib/apiClient";
 
 const REPORT_TYPES = [
   { value: "utm_campaign", label: "utm_campaign (padrão)" },
@@ -18,6 +19,37 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
   const [active, setActive] = useState(connection ? connection.active : true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+
+  // Relatório salvo tem dono no GAM: o ID que aparece no painel do operador
+  // pode não existir para a credencial. Buscar a lista tira o adivinhação.
+  const [reports, setReports] = useState(null);
+  const [loadingReports, setLoadingReports] = useState(false);
+
+  async function handleListReports() {
+    setLoadingReports(true);
+    setError("");
+
+    try {
+      const found = await api(
+        `/api/gam/networks/${encodeURIComponent(networkCode.trim())}/reports`
+      );
+
+      setReports(found);
+
+      if (found.length === 0) {
+        setError(
+          "A credencial não enxerga nenhum relatório nesta rede. No GAM, " +
+            "compartilhe o relatório com todos da rede — relatório salvo é " +
+            "privado de quem criou."
+        );
+      }
+    } catch (listError) {
+      setError(listError.message);
+      setReports(null);
+    } finally {
+      setLoadingReports(false);
+    }
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -77,14 +109,39 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
 
           <div className="field">
             <label htmlFor="gam-report">Report ID</label>
-            <input
-              id="gam-report"
-              type="text"
-              value={reportId}
-              onChange={(event) => setReportId(event.target.value)}
-              placeholder="7460106012"
-              inputMode="numeric"
-            />
+
+            {reports?.length > 0 ? (
+              <select
+                id="gam-report"
+                value={reportId}
+                onChange={(event) => setReportId(event.target.value)}
+              >
+                <option value="">Escolha um relatório</option>
+                {reports.map((item) => (
+                  <option key={item.id} value={item.id}>
+                    {item.name} — {item.id}
+                  </option>
+                ))}
+              </select>
+            ) : (
+              <input
+                id="gam-report"
+                type="text"
+                value={reportId}
+                onChange={(event) => setReportId(event.target.value)}
+                placeholder="7460106012"
+                inputMode="numeric"
+              />
+            )}
+
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={handleListReports}
+              disabled={loadingReports || !networkCode.trim()}
+            >
+              {loadingReports ? "Buscando..." : "Buscar relatórios da rede"}
+            </button>
           </div>
         </div>
 

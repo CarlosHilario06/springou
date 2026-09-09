@@ -1,6 +1,7 @@
 import { getGoogleAuth } from "./client.js";
 import { parseGamRows } from "./parseGamRows.js";
 import { describeGoogleError } from "./errors.js";
+import { listGamReports } from "./listGamReports.js";
 import { env } from "../env.js";
 
 const POLL_ATTEMPTS = 20;
@@ -8,6 +9,37 @@ const POLL_INTERVAL_MS = 3000;
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Complementa o erro com os relatórios que a credencial realmente vê. */
+async function sugerirRelatorios(networkCode, reportId) {
+  let relatorios;
+
+  try {
+    relatorios = await listGamReports({ networkCode });
+  } catch {
+    // Se nem listar dá, o problema é anterior ao relatório: deixa o erro
+    // original falar sozinho.
+    return "";
+  }
+
+  if (relatorios.length === 0) {
+    return (
+      ` · A credencial não enxerga nenhum relatório nesta rede.` +
+      ` No GAM, abra o relatório ${reportId} e compartilhe com todos da rede` +
+      ` (relatório salvo é privado de quem criou).`
+    );
+  }
+
+  const lista = relatorios
+    .slice(0, 8)
+    .map((item) => `${item.id} (${item.name})`)
+    .join(", ");
+
+  const resto =
+    relatorios.length > 8 ? ` e mais ${relatorios.length - 8}` : "";
+
+  return ` · Relatórios visíveis nesta rede: ${lista}${resto}.`;
 }
 
 /**
@@ -25,11 +57,22 @@ export async function getGamReportRows(options = {}) {
   const auth = getGoogleAuth();
   const baseUrl = "https://admanager.googleapis.com/v1";
 
-  const runResponse = await auth.request({
-    url: `${baseUrl}/networks/${networkCode}/reports/${reportId}:run`,
-    method: "POST",
-    data: {},
-  });
+  let runResponse;
+
+  try {
+    runResponse = await auth.request({
+      url: `${baseUrl}/networks/${networkCode}/reports/${reportId}:run`,
+      method: "POST",
+      data: {},
+    });
+  } catch (error) {
+    // O ID não serve para esta credencial. Dizer quais servem economiza
+    // uma rodada inteira de tentativa e erro.
+    throw new Error(
+      `${describeGoogleError(error)}${await sugerirRelatorios(networkCode, reportId)}`,
+      { cause: error }
+    );
+  }
 
   const operationName = runResponse.data?.name;
 
