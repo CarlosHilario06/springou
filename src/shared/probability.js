@@ -252,3 +252,65 @@ export function pickByProbability(links) {
 
   return links[links.length - 1];
 }
+
+/** Arredonda para uma casa — a mesma precisão que o painel mostra. */
+function round1(value) {
+  return Math.round(value * 10) / 10;
+}
+
+/**
+ * Recalcula as outras travas quando uma fatia é editada à mão.
+ *
+ * A fatia que acabou de ser digitada vale exatamente o que foi digitado —
+ * quem cede (ou toma) espaço são as demais travas, na proporção em que já
+ * estavam. Enquanto houver link automático na aba, ele é que absorve a
+ * sobra: as outras travas só se mexem se não couberem mais em 100%.
+ *
+ * @param {Array} rows linhas visíveis da aba, com `id` e `fixedProbability`
+ * @param {number} editedId id da linha que está sendo digitada
+ * @param {string|number} rawValue valor digitado
+ * @returns {Object} novas travas por id, só para as linhas que mudaram
+ */
+export function rebalanceFixedShares(rows, editedId, rawValue) {
+  const value = readFixedShare({ fixedProbability: rawValue });
+  if (value === null) return {};
+
+  const others = (rows || []).filter(
+    (row) => row.id !== undefined && row.id !== editedId && !row.disabled
+  );
+
+  const locked = others.filter((row) => readFixedShare(row) !== null);
+  if (locked.length === 0) return {};
+
+  const budget = Math.max(0, 100 - value);
+  const total = locked.reduce((acc, row) => acc + readFixedShare(row), 0);
+
+  // Ainda há link automático para absorver a sobra e as travas cabem: nada
+  // a mexer.
+  if (locked.length < others.length && total <= budget) return {};
+
+  const shares = locked.map((row) =>
+    total > 0 ? (readFixedShare(row) * budget) / total : budget / locked.length
+  );
+
+  const rounded = shares.map(round1);
+
+  // O arredondamento deixa um resto de no máximo alguns décimos; joga tudo
+  // na maior fatia, onde ele desaparece.
+  const drift = round1(budget - rounded.reduce((acc, share) => acc + share, 0));
+
+  if (drift !== 0) {
+    let biggest = 0;
+    for (let i = 1; i < rounded.length; i += 1) {
+      if (rounded[i] > rounded[biggest]) biggest = i;
+    }
+    rounded[biggest] = Math.max(0, round1(rounded[biggest] + drift));
+  }
+
+  const changes = {};
+  locked.forEach((row, index) => {
+    changes[row.id] = rounded[index];
+  });
+
+  return changes;
+}

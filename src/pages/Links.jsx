@@ -5,6 +5,7 @@ import LinkModal from "../components/LinkModal";
 import RouteModal from "../components/RouteModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SplitterSwitcher from "../components/SplitterSwitcher";
+import { rebalanceFixedShares } from "../shared/probability";
 
 const currency = new Intl.NumberFormat("pt-BR", {
   style: "currency",
@@ -160,6 +161,29 @@ export default function Links({ project, splitter, onSelectSplitter }) {
       ...current,
       [row.id]: { ...(current[row.id] || {}), [field]: value },
     }));
+  }
+
+  /**
+   * Fatia digitada à mão. O número escrito vale exatamente o que foi
+   * escrito: são as outras travas que cedem espaço para o total fechar
+   * 100%. Sem isso, mexer numa aba já toda travada encolhia justamente a
+   * fatia que se acabou de digitar.
+   */
+  function editShare(row, value) {
+    const adjustments = rebalanceFixedShares(rows, row.id, value);
+
+    setDrafts((current) => {
+      const next = {
+        ...current,
+        [row.id]: { ...(current[row.id] || {}), fixedProbability: value },
+      };
+
+      for (const [id, share] of Object.entries(adjustments)) {
+        next[id] = { ...(next[id] || {}), fixedProbability: share };
+      }
+
+      return next;
+    });
   }
 
   function removeRow(row) {
@@ -605,11 +629,7 @@ export default function Links({ project, splitter, onSelectSplitter }) {
                                 type="number"
                                 value={row.shareInput}
                                 onChange={(event) =>
-                                  editRow(
-                                    row,
-                                    "fixedProbability",
-                                    event.target.value
-                                  )
+                                  editShare(row, event.target.value)
                                 }
                                 min="0"
                                 max="100"

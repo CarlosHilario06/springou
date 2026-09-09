@@ -14,7 +14,13 @@ echo "=== imagem em uso x último commit ==="
 # Se a imagem for mais antiga que o commit, falta rodar
 # `docker compose up -d --build`.
 echo "commit  : $(git log -1 --format=%cI)"
-echo "imagem  : $(docker inspect -f '{{.Created}}' "$(docker compose images -q app)" 2>/dev/null || echo 'container fora do ar')"
+CID=$(docker compose ps -q app 2>/dev/null)
+if [ -n "$CID" ]; then
+  IMG=$(docker inspect -f '{{.Image}}' "$CID")
+  echo "imagem  : $(docker inspect -f '{{.Created}}' "$IMG")"
+else
+  echo "imagem  : container do app fora do ar"
+fi
 
 echo
 echo "=== migrations aplicadas ==="

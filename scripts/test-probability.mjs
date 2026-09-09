@@ -7,7 +7,10 @@
  * direto. É o núcleo do produto — quem decide para onde vai o dinheiro —
  * então cada comportamento esperado vira um caso aqui.
  */
-import { calculateProbabilities } from "../src/shared/probability.js";
+import {
+  calculateProbabilities,
+  rebalanceFixedShares,
+} from "../src/shared/probability.js";
 
 const soma = (r) => Number(r.reduce((a, l) => a + l.probability, 0).toFixed(2));
 const por = (r, url) => r.find((l) => l.url === url)?.probability;
@@ -81,5 +84,46 @@ r = calculateProbabilities([L("a", 1000, 40000, { fixedProbability: 30 }), L("b"
 check("travado mantém os 30%", por(r, "a") === 30);
 check("soma 100%", soma(r) === 100, `(${soma(r)})`);
 check("entre os livres o melhor leva mais", por(r, "b") > por(r, "c"));
+
+console.log("\n[10] Editar uma fatia numa aba toda travada");
+// Caso real: cinco travas somando 100 e o operador troca a primeira por 50%.
+// Antes, todas eram reduzidas na proporção e a fatia digitada virava 39,8%.
+let linhas = [
+  { id: 2, fixedProbability: 24.3 },
+  { id: 3, fixedProbability: 20 },
+  { id: 4, fixedProbability: 30.5 },
+  { id: 5, fixedProbability: 15.5 },
+  { id: 6, fixedProbability: 9.7 },
+];
+let ajuste = rebalanceFixedShares(linhas, 2, "50");
+let sobra = Object.values(ajuste).reduce((a, b) => a + b, 0);
+check("as outras travas cedem espaço", Math.abs(sobra - 50) < 0.05, `(${sobra.toFixed(1)})`);
+check("a fatia digitada não é mexida", ajuste[2] === undefined);
+check("proporção entre as outras é mantida", ajuste[4] > ajuste[3] && ajuste[3] > ajuste[5]);
+
+r = calculateProbabilities(
+  linhas.map((l) => ({ ...l, url: `u${l.id}`, ecpm: 10, impressions: 40000, disabled: false, fixedProbability: l.id === 2 ? 50 : ajuste[l.id] }))
+);
+check("depois de salvar, a fatia digitada é exatamente 50%", por(r, "u2") === 50, `(${por(r, "u2")})`);
+check("soma 100%", Math.abs(soma(r) - 100) <= 0.02, `(${soma(r)})`);
+
+console.log("\n[11] Com link automático na aba, as travas não se mexem à toa");
+ajuste = rebalanceFixedShares(
+  [{ id: 1, fixedProbability: 30 }, { id: 2, fixedProbability: 20 }, { id: 3 }],
+  1,
+  "40"
+);
+check("cabe em 100%: nada muda", Object.keys(ajuste).length === 0);
+
+ajuste = rebalanceFixedShares(
+  [{ id: 1, fixedProbability: 30 }, { id: 2, fixedProbability: 80 }, { id: 3 }],
+  1,
+  "40"
+);
+check("não cabe: a outra trava é reduzida", ajuste[2] === 60, `(${ajuste[2]})`);
+
+console.log("\n[12] Campo apagado volta ao automático sem mexer nos outros");
+ajuste = rebalanceFixedShares([{ id: 1, fixedProbability: 30 }, { id: 2, fixedProbability: 20 }], 1, "");
+check("nada a ajustar", Object.keys(ajuste).length === 0);
 
 process.exit(fails ? 1 : 0);
