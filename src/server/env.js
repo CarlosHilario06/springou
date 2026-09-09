@@ -59,6 +59,11 @@ export const env = {
     // é o que mantém eCPM e receita frescos de hora em hora.
     syncEnabled: bool("ENABLE_GAM_SYNC", true),
     syncCron: optional("GAM_SYNC_CRON", "0 * * * *"),
+    // Conta de serviço: uma chave só, válida para todas as redes em que ela
+    // foi cadastrada como usuário. Tem prioridade sobre o OAuth abaixo.
+    serviceAccountJson: optional("GAM_SERVICE_ACCOUNT_JSON"),
+    serviceAccountFile: optional("GAM_SERVICE_ACCOUNT_FILE"),
+    // OAuth de usuário: o jeito antigo, uma conta Google por vez.
     oauthJson: optional("GAM_OAUTH_JSON"),
     tokenJson: optional("GAM_TOKEN_JSON"),
     networkCode: optional("GAM_NETWORK_CODE"),

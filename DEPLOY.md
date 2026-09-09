@@ -187,7 +187,26 @@ Depois **troque a senha pelo painel** e remova `ADMIN_PASSWORD` do arquivo.
 
 ## 6. Ad Manager
 
-As credenciais do Google vão no mesmo `.env`, em uma linha cada:
+As credenciais do Google vão no mesmo `.env`, em uma linha cada.
+
+Com **conta de serviço** (uma chave para todas as redes):
+
+```ini
+GAM_SERVICE_ACCOUNT_JSON='{"type":"service_account","client_email":"...","private_key":"..."}'
+ENABLE_GAM_SYNC="true"
+```
+
+Para gerar essa linha sem errar no copia-e-cola, mande a chave para o
+servidor e deixe o script escrever:
+
+```bash
+scp conta-servico.json ubuntu@SEU_IP:~/conta-servico.json
+ssh ubuntu@SEU_IP
+cd ~/springou && node scripts/import-gam-service-account.js ~/conta-servico.json
+rm ~/conta-servico.json          # a chave já está no .env
+```
+
+Com **OAuth de usuário** (uma conta Google por vez):
 
 ```ini
 GAM_OAUTH_JSON='{"installed":{...}}'

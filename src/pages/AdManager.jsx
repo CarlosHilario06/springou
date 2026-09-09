@@ -172,9 +172,34 @@ export default function AdManager() {
 
       {status && !status.configured && (
         <div className="alert alert-info">
-          Credenciais do Google ausentes. Defina <span className="mono">GAM_OAUTH_JSON</span>{" "}
-          e <span className="mono">GAM_TOKEN_JSON</span> no <span className="mono">.env</span>{" "}
-          para conseguir sincronizar.
+          Credenciais do Google ausentes. Defina{" "}
+          <span className="mono">GAM_SERVICE_ACCOUNT_JSON</span> (conta de
+          serviço, atende várias redes) ou{" "}
+          <span className="mono">GAM_OAUTH_JSON</span> e{" "}
+          <span className="mono">GAM_TOKEN_JSON</span> no{" "}
+          <span className="mono">.env</span> para conseguir sincronizar.
+        </div>
+      )}
+
+      {status?.authMode === "service_account" && (
+        <div className="alert alert-info">
+          Acessando por <strong>conta de serviço</strong>
+          {status.serviceAccountEmail && (
+            <>
+              {" "}
+              (<span className="mono">{status.serviceAccountEmail}</span>)
+            </>
+          )}
+          . Cada rede só aparece aqui depois que esse e-mail for cadastrado
+          nela, em Admin → Acesso e autorização → Contas de serviço.
+        </div>
+      )}
+
+      {status?.authMode === "oauth" && (
+        <div className="alert alert-info">
+          Acessando por <strong>OAuth de usuário</strong> — vale para uma conta
+          Google por vez. Para puxar várias redes de uma vez, troque por uma
+          conta de serviço.
         </div>
       )}
 

@@ -142,8 +142,27 @@ Um processo serve o painel, a API e o redirect; o Caddy cuida do certificado.
 
 ## Google Ad Manager
 
-A integração roda com credenciais OAuth passadas por variável de ambiente —
-nenhum arquivo de credencial fica no repositório:
+As credenciais vêm por variável de ambiente — nenhum arquivo de credencial
+fica no repositório. Há dois modos, e a conta de serviço tem prioridade:
+
+**Conta de serviço** (recomendado quando há mais de uma rede). Uma chave só
+atende todas as redes em que ela estiver cadastrada como usuário, então dá
+para ter várias conexões de *network code* diferente sem trocar credencial:
+
+- `GAM_SERVICE_ACCOUNT_JSON` — o JSON da chave, em uma linha, ou
+- `GAM_SERVICE_ACCOUNT_FILE` — o caminho de um arquivo montado de fora
+
+```bash
+node scripts/import-gam-service-account.js <chave.json>
+```
+
+O script valida a chave, grava no `.env` e imprime o e-mail da conta. Esse
+e-mail precisa ser cadastrado em **cada** rede do Ad Manager, em Admin →
+Acesso e autorização → Contas de serviço, com permissão de executar
+relatórios. A tela **Ad Manager** do painel mostra qual credencial está
+valendo e repete o e-mail.
+
+**OAuth de usuário** (uma conta Google por vez):
 
 - `GAM_OAUTH_JSON` — o JSON do client OAuth, em uma linha
 - `GAM_TOKEN_JSON` — o JSON do token com o refresh_token
@@ -159,7 +178,7 @@ desliga, deixando a sincronização apenas no botão do painel. O botão
 **Google Ad Manager**, no topo da tela de links, puxa os números na hora e
 mostra ao lado quando foi a última atualização.
 
-### Gerando um token novo
+### Gerando um token novo (só no modo OAuth)
 
 Quando a sincronização falhar com `invalid_grant`, o refresh token não vale
 mais e precisa ser refeito:

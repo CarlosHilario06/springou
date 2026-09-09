@@ -1,6 +1,10 @@
 import { Router } from "express";
 import prisma from "../prisma.js";
-import { isGamConfigured } from "../gam/client.js";
+import {
+  gamAuthMode,
+  gamServiceAccountEmail,
+  isGamConfigured,
+} from "../gam/client.js";
 import { gamSyncState, syncGamConnections } from "../services/gamSync.js";
 import { env } from "../env.js";
 import {
@@ -28,6 +32,8 @@ router.get("/status", async (req, res, next) => {
 
     res.json({
       configured: isGamConfigured(),
+      authMode: gamAuthMode(),
+      serviceAccountEmail: gamServiceAccountEmail(),
       autoSyncEnabled: env.gam.syncEnabled,
       cron: env.gam.syncCron,
       running: gamSyncState.running,
