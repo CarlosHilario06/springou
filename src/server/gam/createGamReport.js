@@ -16,25 +16,22 @@ export function reportDisplayName(reportKey) {
 }
 
 /**
- * As combinações que o sincronizador sabe ler, da mais desejável à mais
- * conservadora.
+ * Os degraus entre um relatório trivial e o que o sincronizador precisa.
  *
- * O Ad Manager recusa certas misturas de dimensão, métrica e filtro com um
- * `REPORT_ERROR_CONSTRAINTS_INCOMPATIBILITY` seco, e quais valem depende da
- * rede: uma que só serve pelo ad server aceita coisas que outra, com
- * Ad Exchange, não aceita. Em vez de adivinhar, tenta em ordem e fica com a
- * primeira que a rede aceitar.
+ * O Ad Manager recusa combinações de dimensão, métrica e filtro com um
+ * `REPORT_ERROR_CONSTRAINTS_INCOMPATIBILITY` que não diz qual parte
+ * ofendeu, e o que ele aceita varia de rede para rede. Em vez de adivinhar,
+ * a criação sobe esta escada e para no último degrau que a rede aceitar —
+ * o degrau que falhou é o diagnóstico.
  *
- * O que nunca muda: a dimensão `KEY_VALUES_NAME`, que devolve
- * `chave=valor`, e três métricas na ordem impressões, eCPM e receita — é o
- * contrato que `parseGamRows` lê por posição.
+ * A partir de `usavel: true` o relatório atende o contrato de
+ * `parseGamRows`: dimensão `KEY_VALUES_NAME`, que devolve `chave=valor`, e
+ * três métricas na ordem impressões, eCPM e receita.
  */
-export function reportVariants(reportKey = "utm_campaign") {
-  const base = {
-    reportType: "HISTORICAL",
-    dateRange: { relative: DATE_RANGE },
-    dimensions: ["KEY_VALUES_NAME"],
-  };
+export function reportLadder(reportKey = "utm_campaign") {
+  const base = { reportType: "HISTORICAL", dateRange: { relative: DATE_RANGE } };
+
+  const totais = ["IMPRESSIONS", "AVERAGE_ECPM", "REVENUE"];
 
   const somenteAChave = [
     {
@@ -46,47 +43,92 @@ export function reportVariants(reportKey = "utm_campaign") {
     },
   ];
 
-  const totais = ["IMPRESSIONS", "AVERAGE_ECPM", "REVENUE"];
-  const adServer = [
-    "AD_SERVER_IMPRESSIONS",
-    "AD_SERVER_AVERAGE_ECPM",
-    "AD_SERVER_REVENUE",
-  ];
-
   return [
     {
-      rotulo: "totais, filtrado pela chave",
-      definition: { ...base, metrics: totais, filters: somenteAChave },
+      rotulo: "só impressões, sem dimensão",
+      usavel: false,
+      definition: { ...base, dimensions: [], metrics: ["IMPRESSIONS"] },
     },
     {
-      rotulo: "totais, sem filtro",
-      definition: { ...base, metrics: totais },
+      rotulo: "por data",
+      usavel: false,
+      definition: { ...base, dimensions: ["DATE"], metrics: ["IMPRESSIONS"] },
     },
     {
-      rotulo: "ad server, filtrado pela chave",
-      definition: { ...base, metrics: adServer, filters: somenteAChave },
+      rotulo: "por chave-valor",
+      usavel: false,
+      definition: {
+        ...base,
+        dimensions: ["KEY_VALUES_NAME"],
+        metrics: ["IMPRESSIONS"],
+      },
     },
     {
-      rotulo: "ad server, sem filtro",
-      definition: { ...base, metrics: adServer },
+      rotulo: "chave-valor com eCPM e receita",
+      usavel: true,
+      definition: {
+        ...base,
+        dimensions: ["KEY_VALUES_NAME"],
+        metrics: totais,
+      },
+    },
+    {
+      rotulo: "chave-valor filtrado pela chave",
+      usavel: true,
+      definition: {
+        ...base,
+        dimensions: ["KEY_VALUES_NAME"],
+        metrics: totais,
+        filters: somenteAChave,
+      },
     },
   ];
 }
 
-/** A primeira variante — a que a gente prefere quando a rede deixa. */
+/** A forma final pretendida — o topo da escada. */
 export function buildReportDefinition(reportKey = "utm_campaign") {
-  return reportVariants(reportKey)[0].definition;
+  const escada = reportLadder(reportKey);
+  return escada[escada.length - 1].definition;
+}
+
+async function criarComDefinicao(auth, networkCode, displayName, definition) {
+  const resposta = await auth.request({
+    url: `${BASE_URL}/networks/${networkCode}/reports`,
+    method: "POST",
+    data: {
+      displayName,
+      // VISIBLE deixa o relatório aparecer também na interface do Ad
+      // Manager, para conferência — não é o que dá acesso à API.
+      visibility: "VISIBLE",
+      reportDefinition: definition,
+    },
+  });
+
+  const criado = resposta.data || {};
+  const id = criado.reportId ?? String(criado.name || "").split("/").pop();
+
+  if (!id) throw new Error("O GAM não devolveu o ID do relatório criado");
+
+  return String(id);
+}
+
+async function trocarDefinicao(auth, networkCode, reportId, definition) {
+  await auth.request({
+    url: `${BASE_URL}/networks/${networkCode}/reports/${reportId}?updateMask=reportDefinition`,
+    method: "PATCH",
+    data: { reportDefinition: definition },
+  });
 }
 
 /**
- * Cria (ou reaproveita) o relatório do Springou numa rede.
+ * Cria (ou reaproveita) na rede o relatório que o sincronizador sabe ler.
  *
- * Criado pela API, o relatório nasce pertencendo à conta de serviço — que
- * é o que resolve o problema de visibilidade: relatório salvo pela
- * interface pertence a quem o criou e a API não o enxerga.
+ * Feito pela API, ele pertence à conta de serviço — que é o que resolve o
+ * beco sem saída de um relatório salvo pela interface, privado de quem o
+ * criou e invisível para a API.
  *
- * Clicar duas vezes não gera dois relatórios: se já existir um com o mesmo
- * nome, ele é devolvido como está.
+ * É um relatório só: a escada é percorrida com `patch` sobre o mesmo
+ * recurso, então tentar de novo não deixa lixo na rede.
  */
 export async function createGamReport({
   networkCode,
@@ -94,57 +136,57 @@ export async function createGamReport({
 }) {
   if (!networkCode) throw new Error("networkCode não informado");
 
+  const auth = getGoogleAuth();
   const displayName = reportDisplayName(reportKey);
+  const escada = reportLadder(reportKey);
 
   const existentes = await listGamReports({ networkCode });
   const jaCriado = existentes.find((item) => item.name === displayName);
 
-  if (jaCriado) return { ...jaCriado, reused: true };
-
-  const auth = getGoogleAuth();
+  let reportId = jaCriado?.id ?? null;
+  let aceito = null;
+  let parede = null;
   const recusas = [];
 
-  for (const variante of reportVariants(reportKey)) {
-    let resposta;
-
+  for (const degrau of escada) {
     try {
-      resposta = await auth.request({
-        url: `${BASE_URL}/networks/${networkCode}/reports`,
-        method: "POST",
-        data: {
+      if (reportId) {
+        await trocarDefinicao(auth, networkCode, reportId, degrau.definition);
+      } else {
+        reportId = await criarComDefinicao(
+          auth,
+          networkCode,
           displayName,
-          // VISIBLE deixa ele aparecer também na interface do Ad Manager,
-          // para conferência — não é o que dá acesso à API.
-          visibility: "VISIBLE",
-          reportDefinition: variante.definition,
-        },
-      });
+          degrau.definition
+        );
+      }
+
+      aceito = degrau;
     } catch (error) {
-      recusas.push(`${variante.rotulo}: ${describeGoogleError(error)}`);
-      continue;
+      const motivo = describeGoogleError(error);
+      recusas.push(`${degrau.rotulo}: ${motivo}`);
+
+      // O primeiro degrau recusado é o diagnóstico; os de cima seriam
+      // recusados pelo mesmo motivo.
+      parede = { rotulo: degrau.rotulo, motivo };
+      break;
     }
-
-    const criado = resposta.data || {};
-    const id = criado.reportId ?? String(criado.name || "").split("/").pop();
-
-    if (!id) throw new Error("O GAM não devolveu o ID do relatório criado");
-
-    return {
-      id: String(id),
-      name: criado.displayName || displayName,
-      variant: variante.rotulo,
-      reused: false,
-    };
   }
 
-  // Nenhuma combinação passou: mostra o que cada uma ouviu do Google, que é
-  // o que permite ajustar sem ficar no escuro. `fromGam` diz à rota que
-  // este texto é para ser lido pelo operador, e não um erro interno a
-  // esconder em produção.
-  const recusado = new Error(
-    `O Ad Manager recusou todas as combinações. ${recusas.join(" | ")}`
-  );
-  recusado.fromGam = true;
+  if (!aceito) {
+    const erro = new Error(
+      `O Ad Manager recusou até o relatório mais simples nesta rede. ${recusas.join(" | ")}`
+    );
+    erro.fromGam = true;
+    throw erro;
+  }
 
-  throw recusado;
+  return {
+    id: reportId,
+    name: displayName,
+    variant: aceito.rotulo,
+    usable: aceito.usavel,
+    wall: parede,
+    reused: Boolean(jaCriado),
+  };
 }

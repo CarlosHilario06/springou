@@ -69,13 +69,24 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
         { method: "POST", body: { reportType } }
       );
 
-      setReportId(created.id);
       setReports(null);
+
+      if (!created.usable) {
+        // O relatório existe, mas a rede parou antes da forma que o
+        // sincronizador lê. Não adianta gravar o ID: diria "conectado" e
+        // sincronizaria vazio.
+        setNotice("");
+        setError(
+          `A rede aceitou o relatório só até "${created.variant}". ` +
+            `Ela recusou "${created.wall?.rotulo}": ${created.wall?.motivo}`
+        );
+        return;
+      }
+
+      setReportId(created.id);
       setNotice(
-        created.reused
-          ? `Já existia: "${created.name}" (${created.id}). Salve para usar.`
-          : `Relatório "${created.name}" criado (${created.id}), com métricas ` +
-            `${created.variant}. Salve para usar.`
+        `Relatório "${created.name}" pronto (${created.id}), no formato ` +
+          `"${created.variant}". Salve para usar.`
       );
     } catch (createError) {
       setError(createError.message);
