@@ -167,10 +167,23 @@ valendo e repete o e-mail.
 - `GAM_OAUTH_JSON` — o JSON do client OAuth, em uma linha
 - `GAM_TOKEN_JSON` — o JSON do token com o refresh_token
 
-No painel, em **Ad Manager**, cadastre uma conexão com o *network code* e o
-ID de um relatório salvo no GAM. O relatório precisa ter a dimensão
-chave-valor (`utm_campaign=...`) e as métricas na ordem impressões, eCPM e
-receita.
+No painel, em **Ad Manager**, cadastre uma conexão por rede com o *network
+code*. Para o relatório, o cadastro tem dois botões:
+
+- **Criar relatório** — cria o relatório na rede pela API, já com a
+  dimensão e as métricas certas. É o caminho recomendado: criado assim, o
+  relatório pertence à credencial e ela sempre o enxerga. Clicar duas vezes
+  não duplica — se já existir um com o mesmo nome, ele é reaproveitado.
+- **Buscar relatórios** — lista os relatórios que a credencial já enxerga
+  naquela rede, para escolher um existente.
+
+Relatório salvo pela interface do Ad Manager pertence a quem o criou. Uma
+conta de serviço é outro usuário, então normalmente não vê nenhum deles — o
+sintoma é um `COMMON_ERROR_NOT_FOUND` no ID que funciona no navegador. Por
+isso o botão de criar existe.
+
+Feito à mão, o relatório precisa da dimensão chave-valor (`utm_campaign=...`)
+e das métricas na ordem impressões, eCPM e receita.
 
 O cron vem ligado por padrão e roda de hora em hora (`GAM_SYNC_CRON`); ele
 só entra em ação quando há credenciais configuradas. `ENABLE_GAM_SYNC=false`

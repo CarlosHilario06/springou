@@ -24,6 +24,8 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
   // pode não existir para a credencial. Buscar a lista tira o adivinhação.
   const [reports, setReports] = useState(null);
   const [loadingReports, setLoadingReports] = useState(false);
+  const [creatingReport, setCreatingReport] = useState(false);
+  const [notice, setNotice] = useState("");
 
   async function handleListReports() {
     setLoadingReports(true);
@@ -48,6 +50,36 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
       setReports(null);
     } finally {
       setLoadingReports(false);
+    }
+  }
+
+  /**
+   * Cria o relatório pela API. Ele nasce pertencendo à conta de serviço,
+   * já com as dimensões e métricas que o sincronizador espera — o caminho
+   * que não depende de compartilhar nada na interface do GAM.
+   */
+  async function handleCreateReport() {
+    setCreatingReport(true);
+    setError("");
+    setNotice("");
+
+    try {
+      const created = await api(
+        `/api/gam/networks/${encodeURIComponent(networkCode.trim())}/reports`,
+        { method: "POST", body: { reportType } }
+      );
+
+      setReportId(created.id);
+      setReports(null);
+      setNotice(
+        created.reused
+          ? `Já existia: "${created.name}" (${created.id}). Salve para usar.`
+          : `Relatório "${created.name}" criado (${created.id}). Salve para usar.`
+      );
+    } catch (createError) {
+      setError(createError.message);
+    } finally {
+      setCreatingReport(false);
     }
   }
 
@@ -79,6 +111,7 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
     >
       <form onSubmit={handleSubmit}>
         {error && <div className="alert alert-error">{error}</div>}
+        {notice && <div className="alert alert-success">{notice}</div>}
 
         <div className="field">
           <label htmlFor="gam-name">Nome</label>
@@ -134,14 +167,26 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
               />
             )}
 
-            <button
-              type="button"
-              className="btn btn-ghost btn-sm"
-              onClick={handleListReports}
-              disabled={loadingReports || !networkCode.trim()}
-            >
-              {loadingReports ? "Buscando..." : "Buscar relatórios da rede"}
-            </button>
+            <div className="btn-row">
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleListReports}
+                disabled={loadingReports || creatingReport || !networkCode.trim()}
+              >
+                {loadingReports ? "Buscando..." : "Buscar relatórios"}
+              </button>
+
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={handleCreateReport}
+                disabled={creatingReport || loadingReports || !networkCode.trim()}
+                title="Cria na rede um relatório já no formato certo, pertencente à conta de serviço"
+              >
+                {creatingReport ? "Criando..." : "Criar relatório"}
+              </button>
+            </div>
           </div>
         </div>
 

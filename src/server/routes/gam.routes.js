@@ -7,6 +7,7 @@ import {
 } from "../gam/client.js";
 import { gamSyncState, syncGamConnections } from "../services/gamSync.js";
 import { listGamReports } from "../gam/listGamReports.js";
+import { createGamReport } from "../gam/createGamReport.js";
 import { describeGoogleError } from "../gam/errors.js";
 import { env } from "../env.js";
 import {
@@ -160,6 +161,40 @@ router.get("/networks/:networkCode/reports", async (req, res, next) => {
     });
 
     res.json(await listGamReports({ networkCode }));
+  } catch (error) {
+    if (error?.response) {
+      return next(badRequest(describeGoogleError(error)));
+    }
+
+    next(error);
+  }
+});
+
+/**
+ * Cria na rede o relatório que o sincronizador sabe ler.
+ *
+ * Feito pela API, ele pertence à conta de serviço — e é isso que evita o
+ * beco sem saída de um relatório salvo pela interface, que fica privado de
+ * quem o criou e some para a API.
+ */
+router.post("/networks/:networkCode/reports", async (req, res, next) => {
+  try {
+    if (!isGamConfigured()) {
+      throw badRequest("GAM não configurado — defina as credenciais no .env");
+    }
+
+    const networkCode = requireString(req.params.networkCode, "Network code", {
+      maxLength: 40,
+    });
+
+    const reportKey =
+      optionalString(req.body?.reportType, { maxLength: 40 }) || "utm_campaign";
+
+    if (!REPORT_TYPES.includes(reportKey)) {
+      throw badRequest(`reportType deve ser um de: ${REPORT_TYPES.join(", ")}`);
+    }
+
+    res.status(201).json(await createGamReport({ networkCode, reportKey }));
   } catch (error) {
     if (error?.response) {
       return next(badRequest(describeGoogleError(error)));
