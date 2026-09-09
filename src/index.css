@@ -628,6 +628,12 @@ tbody tr:hover {
 
 /* --------------------------------------------------- sync do Ad Manager */
 
+/* O botão traz uma linha de status embaixo, então a fileira do cabeçalho
+   alinha pelo topo — senão só ele sobe, e os outros descem. */
+.page-header .btn-row {
+  align-items: flex-start;
+}
+
 .gam-sync {
   display: flex;
   flex-direction: column;
