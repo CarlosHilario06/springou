@@ -74,7 +74,8 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
       setNotice(
         created.reused
           ? `Já existia: "${created.name}" (${created.id}). Salve para usar.`
-          : `Relatório "${created.name}" criado (${created.id}). Salve para usar.`
+          : `Relatório "${created.name}" criado (${created.id}), com métricas ` +
+            `${created.variant}. Salve para usar.`
       );
     } catch (createError) {
       setError(createError.message);
