@@ -1,5 +1,6 @@
 import { getGoogleAuth } from "./client.js";
 import { parseGamRows } from "./parseGamRows.js";
+import { describeGoogleError } from "./errors.js";
 import { env } from "../env.js";
 
 const POLL_ATTEMPTS = 20;
@@ -56,8 +57,12 @@ export async function getGamReportRows(options = {}) {
   }
 
   if (operation.error) {
+    // A operação falhou do lado do Google: o erro vem no mesmo formato da
+    // resposta HTTP, então reaproveita o mesmo tradutor.
     throw new Error(
-      `GAM retornou erro: ${operation.error.message || "desconhecido"}`
+      `GAM recusou o relatório: ${describeGoogleError({
+        response: { data: { error: operation.error } },
+      })}`
     );
   }
 

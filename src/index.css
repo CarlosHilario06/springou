@@ -626,6 +626,15 @@ tbody tr:hover {
   color: #c7d2fe;
 }
 
+/* Mensagem de erro do Google: cabe inteira, quebrando onde precisar. */
+.error-detail {
+  max-width: 420px;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+  margin-top: 4px;
+}
+
 /* --------------------------------------------------- sync do Ad Manager */
 
 /* O botão traz uma linha de status embaixo, então a fileira do cabeçalho

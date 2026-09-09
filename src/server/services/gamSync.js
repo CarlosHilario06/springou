@@ -1,5 +1,6 @@
 import prisma from "../prisma.js";
 import { getGamReportRows } from "../gam/getGamReport.js";
+import { describeGoogleError } from "../gam/errors.js";
 import { optimizeTrafficProbabilities } from "./optimizer.js";
 
 export const gamSyncState = {
@@ -138,7 +139,7 @@ export async function syncGamConnections({
           rows: rows.length,
         });
       } catch (error) {
-        const message = error?.message || String(error);
+        const message = describeGoogleError(error);
         console.error(`❌ GAM "${connection.name}":`, message);
 
         await prisma.gamConnection.update({

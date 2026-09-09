@@ -264,7 +264,12 @@ export default function AdManager() {
                   <td>
                     <StatusBadge status={connection.status} />
                     {connection.lastError && (
-                      <div className="field-hint" style={{ maxWidth: 260 }}>
+                      // A mensagem do Google costuma ser a única pista do que
+                      // está errado: cabe inteira, sem corte.
+                      <div
+                        className="field-hint error-detail"
+                        title={connection.lastError}
+                      >
                         {connection.lastError}
                       </div>
                     )}
