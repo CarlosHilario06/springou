@@ -15,15 +15,28 @@ const router = Router();
 
 const REPORT_TYPES = ["utm_campaign", "utm_source", "utm_medium", "utm_content"];
 
-router.get("/status", (req, res) => {
-  res.json({
-    configured: isGamConfigured(),
-    autoSyncEnabled: env.gam.syncEnabled,
-    cron: env.gam.syncCron,
-    running: gamSyncState.running,
-    lastSyncAt: gamSyncState.lastSyncAt,
-    lastError: gamSyncState.lastError,
-  });
+router.get("/status", async (req, res, next) => {
+  try {
+    // Depois de reiniciar o servidor a memória zera, mas cada conexão
+    // guarda o horário do próprio último sync: o painel continua sabendo
+    // quando os números foram atualizados.
+    const ultima = await prisma.gamConnection.findFirst({
+      where: { lastSyncAt: { not: null } },
+      orderBy: { lastSyncAt: "desc" },
+      select: { lastSyncAt: true },
+    });
+
+    res.json({
+      configured: isGamConfigured(),
+      autoSyncEnabled: env.gam.syncEnabled,
+      cron: env.gam.syncCron,
+      running: gamSyncState.running,
+      lastSyncAt: gamSyncState.lastSyncAt ?? ultima?.lastSyncAt ?? null,
+      lastError: gamSyncState.lastError,
+    });
+  } catch (error) {
+    next(error);
+  }
 });
 
 router.get("/connections", async (req, res, next) => {

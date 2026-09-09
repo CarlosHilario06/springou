@@ -306,17 +306,27 @@ router.put("/splitters/:splitterId/links", async (req, res, next) => {
   }
 });
 
-/** Recalcula a divisão de tráfego sob demanda (o botão "Otimizar"). */
+/**
+ * Recalcula a divisão de tráfego sob demanda (o botão "Otimizar").
+ *
+ * Aqui — e só aqui — as travas manuais da aba são soltas: quem clica está
+ * pedindo que o algoritmo decida tudo de novo pelo eCPM, inclusive as
+ * fatias que tinham sido digitadas à mão.
+ */
 router.post("/splitters/:splitterId/optimize", async (req, res, next) => {
   try {
     const splitterId = parseId(req.params.splitterId, "Splitter");
+    const tab = optionalString(req.body?.tab, { maxLength: 60 });
 
     const splitter = await prisma.splitter.findUnique({
       where: { id: splitterId },
     });
     if (!splitter) throw notFound("Splitter não encontrado");
 
-    const result = await optimizeTrafficProbabilities({ splitterId });
+    const result = await optimizeTrafficProbabilities({
+      splitterId,
+      ...(tab ? { releaseFixedTab: tab } : {}),
+    });
 
     res.json({
       ...result,

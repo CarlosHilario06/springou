@@ -5,6 +5,7 @@ import LinkModal from "../components/LinkModal";
 import RouteModal from "../components/RouteModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import SplitterSwitcher from "../components/SplitterSwitcher";
+import GamSyncButton from "../components/GamSyncButton";
 import { rebalanceFixedShares } from "../shared/probability";
 
 const currency = new Intl.NumberFormat("pt-BR", {
@@ -263,13 +264,24 @@ export default function Links({ project, splitter, onSelectSplitter }) {
     }
   }
 
+  /**
+   * Otimizar é o único lugar que solta as travas: quem clica está pedindo
+   * que o algoritmo decida tudo de novo pelo eCPM, inclusive as fatias que
+   * foram digitadas à mão.
+   */
   async function handleOptimize() {
     setOptimizing(true);
 
     try {
+      discardChanges();
+
       await run(
-        () => api(`/api/splitters/${splitter.id}/optimize`, { method: "POST" }),
-        "Distribuição de tráfego recalculada."
+        () =>
+          api(`/api/splitters/${splitter.id}/optimize`, {
+            method: "POST",
+            body: { tab: activeTab },
+          }),
+        "Tráfego redistribuído pelo eCPM. As fatias travadas à mão foram liberadas."
       );
     } catch {
       /* mensagem já exibida */
@@ -416,12 +428,14 @@ export default function Links({ project, splitter, onSelectSplitter }) {
         </div>
 
         <div className="btn-row">
+          <GamSyncButton onSynced={reload} />
+
           <button
             type="button"
             className="btn btn-secondary"
             onClick={handleOptimize}
             disabled={optimizing || tabLinks.length === 0}
-            title="Recalcula a divisão de tráfego a partir do eCPM"
+            title="Recalcula tudo pelo eCPM e libera as fatias travadas à mão"
           >
             <Zap size={16} />
             {optimizing ? "Otimizando..." : "Otimizar tráfego"}

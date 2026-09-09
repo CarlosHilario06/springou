@@ -626,6 +626,31 @@ tbody tr:hover {
   color: #c7d2fe;
 }
 
+/* --------------------------------------------------- sync do Ad Manager */
+
+.gam-sync {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
+
+.gam-sync-hint {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.is-spinning {
+  animation: girando 1s linear infinite;
+}
+
+@keyframes girando {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 /* ------------------------------------------------------------- abas */
 
 .tabs {

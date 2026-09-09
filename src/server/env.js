@@ -55,7 +55,9 @@ export const env = {
     .filter(Boolean),
 
   gam: {
-    syncEnabled: bool("ENABLE_GAM_SYNC", false),
+    // Ligado por padrão: só roda de fato quando há credenciais do GAM, e
+    // é o que mantém eCPM e receita frescos de hora em hora.
+    syncEnabled: bool("ENABLE_GAM_SYNC", true),
     syncCron: optional("GAM_SYNC_CRON", "0 * * * *"),
     oauthJson: optional("GAM_OAUTH_JSON"),
     tokenJson: optional("GAM_TOKEN_JSON"),

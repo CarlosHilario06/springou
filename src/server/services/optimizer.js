@@ -7,9 +7,25 @@ import { calculateProbabilities } from "../../shared/probability.js";
  * A distribuição é sempre por grupo (splitter + aba): links de abas
  * diferentes nunca competem entre si, porque cada aba atende rotas
  * diferentes.
+ *
+ * `releaseFixedTab` solta as travas manuais daquela aba antes de calcular:
+ * é o botão "Otimizar tráfego", que existe justamente para devolver a
+ * decisão ao algoritmo. Nenhuma outra chamada mexe nas travas — o sync do
+ * GAM e o salvamento de links respeitam o que foi digitado à mão.
  */
-export async function optimizeTrafficProbabilities({ splitterId } = {}) {
+export async function optimizeTrafficProbabilities({
+  splitterId,
+  releaseFixedTab,
+} = {}) {
   const where = splitterId ? { splitterId: Number(splitterId) } : {};
+
+  if (releaseFixedTab !== undefined && splitterId) {
+    await prisma.link.updateMany({
+      where: { splitterId: Number(splitterId), tab: releaseFixedTab },
+      data: { fixedProbability: null },
+    });
+  }
+
   const links = await prisma.link.findMany({ where });
 
   const groups = new Map();

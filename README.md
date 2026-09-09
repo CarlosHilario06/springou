@@ -54,6 +54,15 @@ Cada link pode ainda ter uma **trava manual**: preenchida, ele recebe
 exatamente aquela fatia e sai da otimização; o restante até 100% é
 distribuído entre os automáticos.
 
+Ao digitar uma fatia, o valor escrito é respeitado ao pé da letra — quem
+cede (ou toma) espaço são as outras travas, na proporção em que já estavam,
+de modo que o total feche 100%. Enquanto houver link automático na aba, ele
+absorve a sobra sozinho e as demais travas não se mexem.
+
+O botão **Otimizar tráfego** é o único que solta as travas: quem clica está
+pedindo que o algoritmo redistribua tudo pelo eCPM, inclusive o que foi
+digitado à mão. Nem o salvamento de links nem o sync do GAM mexem nelas.
+
 Piso e teto são aplicados com redistribuição iterativa, então a soma fecha
 sempre em 100% sem estourar os limites.
 
@@ -144,8 +153,11 @@ ID de um relatório salvo no GAM. O relatório precisa ter a dimensão
 chave-valor (`utm_campaign=...`) e as métricas na ordem impressões, eCPM e
 receita.
 
-`ENABLE_GAM_SYNC=true` liga o cron (padrão: de hora em hora, via
-`GAM_SYNC_CRON`). Sem isso, a sincronização só acontece pelo botão do painel.
+O cron vem ligado por padrão e roda de hora em hora (`GAM_SYNC_CRON`); ele
+só entra em ação quando há credenciais configuradas. `ENABLE_GAM_SYNC=false`
+desliga, deixando a sincronização apenas no botão do painel. O botão
+**Google Ad Manager**, no topo da tela de links, puxa os números na hora e
+mostra ao lado quando foi a última atualização.
 
 ### Gerando um token novo
 

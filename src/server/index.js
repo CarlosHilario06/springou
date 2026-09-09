@@ -11,6 +11,7 @@ import { ensureAdminUser } from "./auth/bootstrap.js";
 import { requireAuth } from "./auth/middleware.js";
 import { HttpError } from "./lib/http.js";
 import { syncGamConnections } from "./services/gamSync.js";
+import { isGamConfigured } from "./gam/client.js";
 
 import authRoutes from "./routes/auth.routes.js";
 import projectsRoutes from "./routes/projects.routes.js";
@@ -156,19 +157,21 @@ async function start() {
   await prisma.$connect();
   await ensureAdminUser();
 
-  if (env.gam.syncEnabled) {
-    if (!cron.validate(env.gam.syncCron)) {
-      console.error(`❌ GAM_SYNC_CRON inválido: ${env.gam.syncCron}`);
-    } else {
-      cron.schedule(env.gam.syncCron, () => {
-        syncGamConnections().catch(() => {
-          /* já logado e registrado em gamSyncState */
-        });
-      });
-      console.log(`🟢 Sync automático do GAM ativo (${env.gam.syncCron})`);
-    }
-  } else {
+  if (!env.gam.syncEnabled) {
     console.log("⚪ Sync automático do GAM desativado (ENABLE_GAM_SYNC=false)");
+  } else if (!isGamConfigured()) {
+    console.log(
+      "⚪ Sync automático do GAM parado: faltam GAM_OAUTH_JSON e GAM_TOKEN_JSON"
+    );
+  } else if (!cron.validate(env.gam.syncCron)) {
+    console.error(`❌ GAM_SYNC_CRON inválido: ${env.gam.syncCron}`);
+  } else {
+    cron.schedule(env.gam.syncCron, () => {
+      syncGamConnections().catch(() => {
+        /* já logado e registrado em gamSyncState */
+      });
+    });
+    console.log(`🟢 Sync automático do GAM ativo (${env.gam.syncCron})`);
   }
 
   app.listen(env.port, () => {
