@@ -2,6 +2,15 @@ import { useState } from "react";
 import Modal from "./Modal";
 import { api } from "../lib/apiClient";
 
+const DATE_RANGES = [
+  { value: "TODAY", label: "Hoje" },
+  { value: "YESTERDAY", label: "Ontem" },
+  { value: "LAST_7_DAYS", label: "Últimos 7 dias" },
+  { value: "LAST_30_DAYS", label: "Últimos 30 dias" },
+  { value: "THIS_MONTH_TO_DATE", label: "Este mês até hoje" },
+  { value: "LAST_MONTH", label: "Mês passado" },
+];
+
 const REPORT_TYPES = [
   { value: "utm_campaign", label: "utm_campaign (padrão)" },
   { value: "utm_source", label: "utm_source" },
@@ -37,6 +46,9 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
   const [reportId, setReportId] = useState(connection?.reportId || "");
   const [reportType, setReportType] = useState(
     connection?.reportType || "utm_campaign"
+  );
+  const [reportRange, setReportRange] = useState(
+    connection?.reportRange || "LAST_7_DAYS"
   );
   const [active, setActive] = useState(connection ? connection.active : true);
   const [error, setError] = useState("");
@@ -88,7 +100,7 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
     try {
       const created = await api(
         `/api/gam/networks/${encodeURIComponent(networkCode.trim())}/reports`,
-        { method: "POST", body: { reportType } }
+        { method: "POST", body: { reportType, reportRange } }
       );
 
       setReports(null);
@@ -128,6 +140,7 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
         networkCode: networkCode.trim(),
         reportId: reportId.trim(),
         reportType,
+        reportRange,
         active,
       });
     } catch (submitError) {
@@ -222,6 +235,25 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
               </button>
             </div>
           </div>
+        </div>
+
+        <div className="field">
+          <label htmlFor="gam-range">Período</label>
+          <select
+            id="gam-range"
+            value={reportRange}
+            onChange={(event) => setReportRange(event.target.value)}
+          >
+            {DATE_RANGES.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </select>
+          <span className="field-hint">
+            A janela que o relatório soma. Mudou aqui? Clique em "Criar
+            relatório" de novo para o relatório acompanhar.
+          </span>
         </div>
 
         <div className="field">

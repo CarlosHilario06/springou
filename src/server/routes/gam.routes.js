@@ -7,7 +7,11 @@ import {
 } from "../gam/client.js";
 import { gamSyncState, syncGamConnections } from "../services/gamSync.js";
 import { listGamReports } from "../gam/listGamReports.js";
-import { createGamReport } from "../gam/createGamReport.js";
+import {
+  createGamReport,
+  DATE_RANGES,
+  DEFAULT_DATE_RANGE,
+} from "../gam/createGamReport.js";
 import { describeGoogleError } from "../gam/errors.js";
 import { env } from "../env.js";
 import {
@@ -21,6 +25,17 @@ import {
 const router = Router();
 
 const REPORT_TYPES = ["utm_campaign", "utm_source", "utm_medium", "utm_content"];
+
+/** Janela do relatório, validada contra o que o painel oferece. */
+function lerJanela(valor) {
+  const janela = optionalString(valor, { maxLength: 40 }) || DEFAULT_DATE_RANGE;
+
+  if (!DATE_RANGES.includes(janela)) {
+    throw badRequest(`reportRange deve ser um de: ${DATE_RANGES.join(", ")}`);
+  }
+
+  return janela;
+}
 
 /**
  * Erro de conversa com o Google vira 400 com o motivo por extenso.
@@ -91,6 +106,7 @@ router.post("/connections", async (req, res, next) => {
           }),
           reportId: optionalString(req.body?.reportId, { maxLength: 40 }),
           reportType,
+          reportRange: lerJanela(req.body?.reportRange),
           active: req.body?.active === undefined ? true : Boolean(req.body.active),
           status: "pending",
         },
@@ -132,6 +148,10 @@ router.put("/connections/:id", async (req, res, next) => {
         throw badRequest(`reportType deve ser um de: ${REPORT_TYPES.join(", ")}`);
       }
       data.reportType = reportType;
+    }
+
+    if (req.body?.reportRange !== undefined) {
+      data.reportRange = lerJanela(req.body.reportRange);
     }
 
     if (req.body?.active !== undefined) data.active = Boolean(req.body.active);
@@ -203,7 +223,11 @@ router.post("/networks/:networkCode/reports", async (req, res, next) => {
       throw badRequest(`reportType deve ser um de: ${REPORT_TYPES.join(", ")}`);
     }
 
-    res.status(201).json(await createGamReport({ networkCode, reportKey }));
+    const dateRange = lerJanela(req.body?.reportRange);
+
+    res.status(201).json(
+      await createGamReport({ networkCode, reportKey, dateRange })
+    );
   } catch (error) {
     next(comoErroDoGam(error));
   }

@@ -5,10 +5,20 @@ import { describeGoogleError } from "./errors.js";
 const BASE_URL = "https://admanager.googleapis.com/v1";
 
 /**
- * Janela que alimenta a otimização. Sete dias equilibra ter volume
- * suficiente por campanha e acompanhar mudança de eCPM sem inércia.
+ * Janelas oferecidas no painel, no vocabulário do Ad Manager. A escolha
+ * muda o que a otimização enxerga: uma janela curta reage rápido a mudança
+ * de eCPM, uma longa dá mais volume por campanha.
  */
-const DATE_RANGE = "LAST_7_DAYS";
+export const DATE_RANGES = [
+  "TODAY",
+  "YESTERDAY",
+  "LAST_7_DAYS",
+  "LAST_30_DAYS",
+  "THIS_MONTH_TO_DATE",
+  "LAST_MONTH",
+];
+
+export const DEFAULT_DATE_RANGE = "LAST_7_DAYS";
 
 /** Nome do relatório criado — serve de chave para não duplicar. */
 export function reportDisplayName(reportKey) {
@@ -29,8 +39,11 @@ export function reportDisplayName(reportKey) {
  * que devolve `chave=valor`, e três métricas na ordem impressões, eCPM e
  * receita.
  */
-export function reportAttempts(reportKey = "utm_campaign") {
-  const base = { reportType: "HISTORICAL", dateRange: { relative: DATE_RANGE } };
+export function reportAttempts(
+  reportKey = "utm_campaign",
+  dateRange = DEFAULT_DATE_RANGE
+) {
+  const base = { reportType: "HISTORICAL", dateRange: { relative: dateRange } };
   const porChave = { ...base, dimensions: ["KEY_VALUES_NAME"] };
 
   const diagnostico = (rotulo, definition) => ({
@@ -52,8 +65,8 @@ export function reportAttempts(reportKey = "utm_campaign") {
   // Cada família vem em duas formas: com filtro pela chave, que evita
   // trazer todas as chaves-valor da rede, e sem — porque o filtro é mais
   // uma coisa que a rede pode recusar.
-  const familia = (rotulo, ecpm, receita) => {
-    const metrics = ["IMPRESSIONS", ecpm, receita];
+  const familia = (rotulo, impressoes, ecpm, receita) => {
+    const metrics = [impressoes, ecpm, receita];
 
     return [
       {
@@ -94,16 +107,40 @@ export function reportAttempts(reportKey = "utm_campaign") {
     sozinha("+ receita do Ad Exchange", "AD_EXCHANGE_REVENUE"),
     sozinha("+ eCPM do Ad Exchange", "AD_EXCHANGE_AVERAGE_ECPM"),
 
-    // As formas completas, da mais fiel à mais específica.
-    ...familia("totais", "AVERAGE_ECPM", "REVENUE"),
-    ...familia("ad server", "AD_SERVER_AVERAGE_ECPM", "AD_SERVER_REVENUE"),
-    ...familia("Ad Exchange", "AD_EXCHANGE_AVERAGE_ECPM", "AD_EXCHANGE_REVENUE"),
+    // As formas completas. Cada família traz as próprias impressões: medir
+    // receita do Ad Exchange contra impressões totais daria confiança demais
+    // a um sinal que veio de uma fatia menor da entrega.
+    ...familia("totais", "IMPRESSIONS", "AVERAGE_ECPM", "REVENUE"),
+    ...familia(
+      "ad server",
+      "AD_SERVER_IMPRESSIONS",
+      "AD_SERVER_AVERAGE_ECPM",
+      "AD_SERVER_REVENUE"
+    ),
+    ...familia(
+      "Ad Exchange",
+      "AD_EXCHANGE_IMPRESSIONS",
+      "AD_EXCHANGE_AVERAGE_ECPM",
+      "AD_EXCHANGE_REVENUE"
+    ),
+    // Último recurso: receita do Ad Exchange com impressões totais, que foi
+    // o que algumas redes aceitaram antes de as impressões do AdX entrarem.
+    ...familia(
+      "Ad Exchange com impressões totais",
+      "IMPRESSIONS",
+      "AD_EXCHANGE_AVERAGE_ECPM",
+      "AD_EXCHANGE_REVENUE"
+    ),
   ];
 }
 
 /** A forma pretendida quando a rede aceita tudo. */
-export function buildReportDefinition(reportKey = "utm_campaign") {
-  return reportAttempts(reportKey).find((item) => item.usavel).definition;
+export function buildReportDefinition(
+  reportKey = "utm_campaign",
+  dateRange = DEFAULT_DATE_RANGE
+) {
+  return reportAttempts(reportKey, dateRange).find((item) => item.usavel)
+    .definition;
 }
 
 async function criarComDefinicao(auth, networkCode, displayName, definition) {
@@ -148,12 +185,13 @@ async function trocarDefinicao(auth, networkCode, reportId, definition) {
 export async function createGamReport({
   networkCode,
   reportKey = "utm_campaign",
+  dateRange = DEFAULT_DATE_RANGE,
 }) {
   if (!networkCode) throw new Error("networkCode não informado");
 
   const auth = getGoogleAuth();
   const displayName = reportDisplayName(reportKey);
-  const tentativas = reportAttempts(reportKey);
+  const tentativas = reportAttempts(reportKey, dateRange);
 
   const existentes = await listGamReports({ networkCode });
   const jaCriado = existentes.find((item) => item.name === displayName);
