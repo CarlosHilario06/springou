@@ -7,7 +7,8 @@ const BASE_URL = "https://admanager.googleapis.com/v1";
 /**
  * Janelas oferecidas no painel, no vocabulário do Ad Manager. A escolha
  * muda o que a otimização enxerga: uma janela curta reage rápido a mudança
- * de eCPM, uma longa dá mais volume por campanha.
+ * de eCPM, uma longa dá mais volume por campanha. O padrão é o dia
+ * corrente, que é como a operação lê o desempenho.
  */
 export const DATE_RANGES = [
   "TODAY",
@@ -18,7 +19,7 @@ export const DATE_RANGES = [
   "LAST_MONTH",
 ];
 
-export const DEFAULT_DATE_RANGE = "LAST_7_DAYS";
+export const DEFAULT_DATE_RANGE = "TODAY";
 
 /** Nome do relatório criado — serve de chave para não duplicar. */
 export function reportDisplayName(reportKey) {

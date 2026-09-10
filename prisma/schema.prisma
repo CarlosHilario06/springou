@@ -100,8 +100,8 @@ model GamConnection {
   name        String
   networkCode String
   reportType  String    @default("utm_campaign")
-  /// Janela do relatório, no vocabulário do GAM (ex.: LAST_7_DAYS).
-  reportRange String    @default("LAST_7_DAYS")
+  /// Janela do relatório, no vocabulário do GAM (ex.: TODAY, LAST_7_DAYS).
+  reportRange String    @default("TODAY")
   reportId    String?
   active      Boolean   @default(true)
   status      String    @default("connected")

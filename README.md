@@ -177,6 +177,11 @@ code*. Para o relatório, o cadastro tem dois botões:
 - **Buscar relatórios** — lista os relatórios que a credencial já enxerga
   naquela rede, para escolher um existente.
 
+O **período** é por conexão e vem em *hoje* — é como a operação lê o
+desempenho. Trocar o período no painel basta: a sincronização reescreve a
+janela do relatório na rede antes de rodá-lo, desde que o relatório seja um
+dos criados pelo painel. Um relatório montado à mão não é tocado.
+
 Relatório salvo pela interface do Ad Manager pertence a quem o criou. Uma
 conta de serviço é outro usuário, então normalmente não vê nenhum deles — o
 sintoma é um `COMMON_ERROR_NOT_FOUND` no ID que funciona no navegador. Por

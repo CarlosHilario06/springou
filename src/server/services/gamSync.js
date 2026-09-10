@@ -1,6 +1,7 @@
 import prisma from "../prisma.js";
 import { getGamReportRows } from "../gam/getGamReport.js";
 import { describeGoogleError } from "../gam/errors.js";
+import { ensureReportRange } from "../gam/ensureReportRange.js";
 import { optimizeTrafficProbabilities } from "./optimizer.js";
 
 export const gamSyncState = {
@@ -114,6 +115,32 @@ export async function syncGamConnections({
 
     for (const connection of connections) {
       try {
+        // A janela vive na definição do relatório, no Ad Manager: mudá-la
+        // no painel só vale depois de reescrever o relatório. Faz isso
+        // aqui para o operador não precisar reabrir a conexão.
+        try {
+          const janelaAntiga = await ensureReportRange({
+            networkCode: connection.networkCode,
+            reportId: connection.reportId,
+            reportKey: connection.reportType,
+            dateRange: connection.reportRange,
+          });
+
+          if (janelaAntiga) {
+            console.log(
+              `↻ GAM "${connection.name}": janela do relatório de ${janelaAntiga} para ${connection.reportRange}`
+            );
+          }
+        } catch (error) {
+          // Ajustar a janela é conveniência, não requisito: se falhar, o
+          // relatório roda com a janela que já tinha em vez de a conexão
+          // inteira quebrar.
+          console.error(
+            `⚠️  GAM "${connection.name}": não consegui conferir a janela do relatório —`,
+            describeGoogleError(error)
+          );
+        }
+
         const rows = await fetchRows({
           networkCode: connection.networkCode,
           reportId: connection.reportId,

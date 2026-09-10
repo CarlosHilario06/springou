@@ -48,7 +48,7 @@ export default function GamConnectionModal({ connection, onSave, onClose }) {
     connection?.reportType || "utm_campaign"
   );
   const [reportRange, setReportRange] = useState(
-    connection?.reportRange || "LAST_7_DAYS"
+    connection?.reportRange || "TODAY"
   );
   const [active, setActive] = useState(connection ? connection.active : true);
   const [error, setError] = useState("");
